@@ -14,9 +14,7 @@ This sub-module is destined for common non-package specific utility functions.
 
 """
 
-# __all__ = [
-#     ""
-# ]
+__all__ = []
 
 
 ##############################################################################
@@ -27,6 +25,11 @@ This sub-module is destined for common non-package specific utility functions.
 # CUSTOM
 
 # PROJECT-SPECIFIC
+
+from . import misc
+from .misc import *  # noqa
+
+__all__ += misc.__all__
 
 
 ##############################################################################

@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
 # see LICENSE.rst
 
-# ----------------------------------------------------------------------------
-#
-# TITLE   : cosmic_conchometer
-# AUTHOR  : Nathaniel Starkman
-# PROJECT : cosmic_conchometer
-#
-# ----------------------------------------------------------------------------
-
 """cosmic_conchometer."""
 
-__author__ = "Nathaniel Starkman"
+__author__ = ["Nathaniel Starkman", "Glenn Starkman", "Arthur Kosowsky"]
 __copyright__ = "Copyright 2020, "
-__maintainer__ = "nstarman"
+__maintainer__ = "Nathaniel Starkman"
 __email__ = "n[dot]starkman[at]mail.utoronto.ca"
 
-__all__ = []
+__all__ = [
+    # modules
+    "utils",
+    # functions
+]
 
 
 ##############################################################################
@@ -24,17 +20,15 @@ __all__ = []
 
 # Packages may add whatever they like to this file, but
 # should keep this content at the top.
-# ----------------------------------------------------------------------------
-from ._astropy_init import *  # noqa
+from ._astropy_init import *  # noqa  # isort:skip
 
-# ----------------------------------------------------------------------------
-from .example_mod import *  # noqa
+from . import core, utils
+from .common import *
+from .core import *
 
-# BUILT-IN
-
-# THIRD PARTY
-
-# PROJECT-SPECIFIC
+# __all__
+__all__ += common.__all__
+__all__ += core.__all__
 
 
 ##############################################################################
