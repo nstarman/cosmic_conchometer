@@ -8,11 +8,11 @@ __copyright__ = "Copyright 2020, "
 __maintainer__ = "Nathaniel Starkman"
 __email__ = "n[dot]starkman[at]mail.utoronto.ca"
 
-__all__ = [
-    # modules
-    "utils",
-    # functions
-]
+# __all__ = [
+#     # modules
+#     "utils",
+#     # functions
+# ]
 
 
 ##############################################################################
@@ -22,13 +22,13 @@ __all__ = [
 # should keep this content at the top.
 from ._astropy_init import *  # noqa  # isort:skip
 
-from . import core, utils
-from .common import *
-from .core import *
+from . import utils
 
-# __all__
-__all__ += common.__all__
-__all__ += core.__all__
+from .common import *  # noqa
+
+
+# # __all__
+# __all__ += common.__all__
 
 
 ##############################################################################
