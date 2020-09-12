@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""**DOCSTRING**.
-
-Description.
-
-"""
+"""Spectral Distortion."""
 
 __all__ = [
     "SpectralDistortion",
@@ -14,35 +10,23 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
-# BUILT-IN
-
 import typing as T
-
-# THIRD PARTY
 
 import astropy.constants as const
 import astropy.units as u
-
 import numpy as np
-
 import scipy.integrate as integ
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+from scipy.special import jv as besselJ
 
-# PROJECT-SPECIFIC
-
-from cosmic_conchometer import default_Ak
-
-from .core import CosmologyDependent
-
+from .core import IntrinsicDistortionBase, ArrayLike_Callable
 
 ##############################################################################
 # PARAMETERS
 
-_ArrayLike_Callable = T.Callable[
-    [T.Union[float, np.ndarray]], T.Union[float, np.ndarray]
-]
+IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
 
-_IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
+QuantityType = T.TypeVar("Quantity", u.Quantity, u.SpecificTypeQuantity)
 
 
 ##############################################################################
@@ -50,17 +34,36 @@ _IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
 ##############################################################################
 
 
-class SpectralDistortionBase(CosmologyDependent):
-    """Spectral Distortion.
+class SpectralDistortion(IntrinsicDistortionBase):
+    r"""Spectral Distortion.
+
+    .. math::
+
+        \frac{I^{(sd)}(\nu,\hat{n})}{B_\nu(\nu, T_0)} =
+        \left(
+        \frac{\lambda_0^2 A(\vec{k})}{16\pi \bar{P}_{\gamma}^{CL}(\zeta_0)}
+        \frac{h\nu/k_B T_0}{e^{-\frac{h\nu}{k_B T_0}}-1}
+        \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
+            \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
+                 {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+        \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+            \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                 {\sqrt{(1+\zeta_E)\zeta_E^3}}
+        2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+        \right.
+
+        \left.
+        \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+        \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+        \right)
 
     Parameters
     ----------
-    cosmo : `~astropy.cosmology.Cosmology`
-    class_cosmo : `~classy.Class`
-    AkFunc: Callable or str or None, optional, keyword only
-
-    Other Parameters
-    ----------------
+    cosmo : :class:`~astropy.cosmology.core.Cosmology`
+    class_cosmo : :class:`~classy.Class`
+    GgamBarCL : Callable
+    PgamBarCL : Callable
+    AkFunc: Callable or str or None, optional
     integration_method : Callable
 
     """
@@ -70,90 +73,7 @@ class SpectralDistortionBase(CosmologyDependent):
         cosmo,
         class_cosmo,
         *,
-        AkFunc: T.Union[str, _ArrayLike_Callable, None] = None,
-        integration_method=integ.quad,
-    ):
-        """Spectral Distortion."""
-        super().__init__(cosmo)
-        self.class_cosmo = class_cosmo  # TODO maybe move to superclass
-
-        if AkFunc is None:
-            self.AkFunc: _ArrayLike_Callable = default_Ak.get()
-        elif isinstance(AkFunc, str):
-            with default_Ak.set(AkFunc):
-                self.AkFunc: _ArrayLike_Callable = default_Ak.get()
-
-        self.emission_residual = None
-        self.angular_residual = None
-
-        # zeta array
-        # TODO methods to set zeta array?
-        thermo = class_cosmo.get_thermodynamics()
-        self._zeta_arr = self.zeta(thermo["z"])
-
-    # /def
-
-    # ------------------------------
-
-    @u.quantity_input(freq="frequency", kvec=1 / u.Mpc)
-    def prefactor(
-        self, freq: u.Quantity, kvec: u.Quantity,
-    ):
-        r"""Combined Prefactor.
-
-        .. |quantity| replace:: `~astropy.units.Quantity`
-
-        Parameters
-        ----------
-        kvec : |quantity|
-            Units of inverse Megaparsec.
-        PgamBarCL0 : float
-            PgamBarCL at zeta0
-        AkFunc : Callable or str or None
-            Function to get amplitude :math:`A(\vec{k})`
-            If str or None, uses `~default_Ak`
-        Tcmb0 : |quantity|
-            Temperature in Kelvin.
-
-        """
-        reduced_energy = freq * const.h / (const.k_B * self.Tcmb0) << u.one
-        prefactor = (
-            reduced_energy
-            / np.expm1(-reduced_energy)
-            * self.lambda0 ** 2
-            * self.AkFunc(kvec)
-            / (16 * np.pi * self.PgamBarCL0)
-        )
-
-        return prefactor
-
-    # /def
-
-
-# /class
-
-
-#####################################################################
-
-
-class SpectralDistortion(SpectralDistortionBase):
-    """Spectral Distortion.
-
-    Parameters
-    ----------
-    cosmo : `~astropy.cosmology.Cosmology`
-    GgamBarCL : Callable
-    PgamBarCL : Callable
-    AkFunc: Callable or str or None, optional
-
-    """
-
-    def __init__(
-        self,
-        cosmo,
-        class_cosmo,
-        *,
-        AkFunc: T.Union[str, _ArrayLike_Callable, None] = None,
+        AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
         integration_method=integ.quad,
     ):
         """Spectral Distortion."""
@@ -168,10 +88,141 @@ class SpectralDistortion(SpectralDistortionBase):
         thermo = self.class_cosmo.get_thermodynamics()
 
         # TODO units
-        self.PgamBarCL: _IUSType = IUS(self._zeta_arr, thermo["exp(-kappa)"])
-        self.GgamBarCL: _IUSType = IUS(self._zeta_arr, thermo["g [Mpc^-1]"])
+        self.PgamBarCL: IUSType = IUS(self._zeta_arr, thermo["exp(-kappa)"])
+        self.GgamBarCL: IUSType = IUS(self._zeta_arr, thermo["g [Mpc^-1]"])
 
         self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
+
+        # vectorized angular_summand
+        self.angular_summand = np.vectorize(self._angular_summand)
+
+    # /def
+
+    # ------------------------------
+
+    @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
+    def prefactor(
+        self, freq: QuantityType, k: QuantityType,
+    ):
+        r"""Combined Prefactor.
+
+        .. math::
+
+            \frac{\lambda_0^2 A(\vec{k})}{16\pi \bar{P}_{\gamma}^{CL}(\zeta_0)}
+            \frac{h\nu/k_B T_0}{e^{-\frac{h\nu}{k_B T_0}}-1}
+
+        Parameters
+        ----------
+        freq : `~astropy.units.Quantity`
+            The frequency.
+        k : `~astropy.units.Quantity`
+            Units of inverse Mpc.
+
+        Returns
+        -------
+        `~astropy.units.Quantity`
+            units of [Mpc**2 * units[AkFunc]]
+
+        """
+        reduced_energy = freq * const.h / (const.k_B * self.Tcmb0) << u.one
+        prefactor = (
+            (reduced_energy / np.expm1(-reduced_energy))
+            * self.lambda0 ** 2
+            * self.AkFunc(k)
+            / (16 * np.pi * self.PgamBarCL0)
+        )
+
+        return prefactor
+
+    # /def
+
+    # ------------------------------
+
+    @staticmethod
+    def _angular_summand(
+        i: int, rES: float, k: float, theta_kS: float,
+    ):
+        r"""Angular Summation.
+
+        .. math::
+
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+
+        Parameters
+        ----------
+        i: int
+            Summation index.
+        rES : float
+            Distance from :math:`\zeta_E` to :math:`\zeta_S`, [Mpc].
+
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
+
+        Returns
+        -------
+        float
+            Integrand, shown above.
+
+        """
+        x = k * rES * np.cos(theta_kS)
+
+        prefactor = np.power(
+            -k * rES * np.sin(theta_kS) * np.tan(theta_kS) / 2.0, i
+        ) / np.math.factorial(i)
+
+        return prefactor * (
+            (2 + i) * besselJ(3.0 / 2 + i, x) - x * besselJ(5.0 / 2 + i, x)
+        )
+
+    # /def
+
+    def angular_sum(
+        self, rES: float, k: float, theta_kS: float, *, i_max: int = 100,
+    ):
+        r"""Angular Summation over Angular Summand.
+
+        .. math::
+
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+
+        Parameters
+        ----------
+        rES : float
+            Distance from :math:`\zeta_E` to :math:`zeta_S`, [Mpc].
+
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
+
+        Returns
+        -------
+        float
+            Integrand, shown above.
+
+        Other Parameters
+        ----------------
+        i_max : int, optional, keyword only
+            Maximum index in summation
+
+        """
+        # 2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+        prefactor = 2 * np.power(
+            2 * np.pi / (k * rES * np.cos(theta_kS)), 3.0 / 2
+        )
+
+        # summation indices
+        ms = np.arange(0, i_max, 1)
+
+        return prefactor * np.sum(
+            self.angular_summand(ms, rES=rES, k=k, theta_kS=theta_kS)
+        )
 
     # /def
 
@@ -181,21 +232,31 @@ class SpectralDistortion(SpectralDistortionBase):
         self,
         zetaE: float,
         zetaS: float,
-        # other variables
-        k: np.ndarray,
-        rEShat: np.ndarray,
+        k: float,
+        theta_kS: float,
+        i_max: int = 100,
     ):
         r"""Emission Integrand.
 
-        :math:`g(\zeta_E) * \exp{(i \vec{k}\cdot \vec{r}_{SE}) / \sqrt((1+\zeta_E) {\zeta_E}^3)}`
+        .. math::
 
-        .. |ndarray| replace:: `~numpy.ndarray`
-        .. |quantity| replace:: `~astropy.units.Quantity`
+            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
 
         Parameters
         ----------
         zetaE, zetaS : float
-            zeta at emission and scatter, respectively
+            :math:`\zeta` at emission and scatter, respectively.
+
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
 
         Returns
         -------
@@ -204,176 +265,79 @@ class SpectralDistortion(SpectralDistortionBase):
 
         Other Parameters
         ----------------
-        k : |quantity|
-            Vector k, inverse Mpc
-        rSEhat : |ndarray|
-            Direction from zetaE to zetaS
-
-        Notes
-        -----
-        .. todo::
-
-            Double check I did rSE, rES substitution correctly
-
-            Double check there is never an imaginary part
-
-            convert rMag to produce
+        i_max : int, optional
+            Maximum index in summation
 
         """
-        emission_integrand = self.GgamBarCL(zetaE) * np.exp(
-            1j * self._rMag_Mpc(zetaE, zetaS) * k.dot(rEShat)
-        ) / np.sqrt((1.0 + zetaE) * zetaE ** 3)
+        # calculate rES
+        rES: float = self._rMag_Mpc(zetaE, zetaS)
 
-        return np.real(emission_integrand)
+        # return integrand
+        emission_integrand = (
+            self.GgamBarCL(zetaE)
+            * self.angular_sum(rES=rES, k=k, theta_kS=theta_kS, i_max=i_max)
+            / np.sqrt((1.0 + zetaE) * zetaE ** 3)
+        )
+
+        return emission_integrand
 
     # /def
 
     def emission_integral(
         self,
-        thetaES: float,
-        phiES: float,
         zetaS: float,
-        *,
         k: np.ndarray,
-        zetaMax: float = np.inf,
+        theta_kS: float,
+        *,
+        zeta_max: float = np.inf,
+        i_max: int = 100,
         **integration_kwargs,
     ):
-        """Emission Integral.
+        r"""Emission Integral.
 
-        .. |quantity| replace:: `~astropy.units.Quantity`
+        .. math::
+
+            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
 
         Parameters
         ----------
-        thetaES, phiES : float
-            In radians.
-        zetaS : float
-            zeta at scatter
+        zetaE, zetaS : float
+            :math:`\zeta` at emission and scatter, respectively.
+
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
 
         Returns
         -------
-        float
+        ingegral : float
+            Result of integrating ``emission_integrand``
+        residual : float
+            Integration residual.
 
         Other Parameters
         ----------------
-        zetaMax : float
-            Maximum zeta
-        k : |quantity|
-            Vector k, inverse Mpc
-        integration_kwargs
-            Keyword arguments into integration.
-            Need to set ``epsabs``. 1e-9 is a good value.
+        zeta_max : float, optional, keyword only
+            Maximum :math:`\zeta`
+        i_max : int, optional, keyword only
+            Maximum index in summation
 
         """
-        # calculate rEShat for use in emission_integrand
-        rEShat = self.rEShat(thetaES, phiES)
-
         # integrate emission integrand
-        integral, residual = integ.quad(
+        integral, residual = self.integration_method(
             self._emission_integrand,
             zetaS,
-            zetaMax,
-            args=(zetaS, k, rEShat),
+            zeta_max,
+            args=(zetaS, k, theta_kS, i_max),
             **integration_kwargs,
         )
-        return integral, residual
-
-    # ------------------------------
-
-    def _angular_integrand(
-        self,
-        thetaES: float,
-        phiES: float,
-        zetaS: float,
-        # other arguments
-        k: np.ndarray,
-        zetaMax: float = np.inf,
-        **integration_kwargs,
-    ):
-        """Angular Integrand.
-
-        .. |quantity| replace:: `~astropy.units.Quantity`
-
-        Parameters
-        ----------
-        thetaES, phiES : float
-            In radians.
-        zetaS : float
-            zeta at scatter
-
-        Returns
-        -------
-        float
-
-        Other Parameters
-        ----------------
-        zetaMax : float
-            Maximum zeta
-        k : |quantity|
-            Vector k, inverse Mpc
-        integration_kwargs
-            Keyword arguments into integration.
-            ``epsabs`` is set to 1e-9 if not provided.
-
-        """
-        integration_kwargs["epsabs"] = integration_kwargs.get("epsabs", 1e-9)
-        integral, _ = self.emission_integral(
-            thetaES, phiES, zetaS, k=k, zetaMax=zetaMax, **integration_kwargs
-        )
-
-        return (
-            (1.0 + np.cos(thetaES) ** 2)
-            * integral
-            * np.sin(thetaES)  # from d\Omega
-        )
-
-    # /def
-
-    def angular_integral(
-        self,
-        zetaS: float,
-        *,
-        k: np.ndarray,
-        zetaMax: float = np.inf,
-        **integration_kwargs,
-    ):
-        """Angular Integrand.
-
-        .. |quantity| replace:: `~astropy.units.Quantity`
-
-        Parameters
-        ----------
-        thetaES, phiES : float
-            In radians.
-        zetaS : float
-            zeta at scatter
-
-        Returns
-        -------
-        float
-
-        Other Parameters
-        ----------------
-        zetaMax : float
-            Maximum zeta
-        k : |quantity|
-            Vector k, inverse Mpc
-        integration_kwargs
-            Keyword arguments into integration.
-            ``epsabs`` is set to 1e-9 if not provided.
-
-        """
-        integration_kwargs["epsabs"] = integration_kwargs.get("epsabs", 1e-9)
-
-        integral, residual = integ.dblquad(
-            self._angular_integrand,
-            0,
-            2 * np.pi,  # Phi bounds
-            lambda x: 0,
-            lambda x: np.pi,  # theta bounds
-            args=(zetaS, k),
-            **integration_kwargs,
-        )
-
         return integral, residual
 
     # /def
@@ -383,19 +347,41 @@ class SpectralDistortion(SpectralDistortionBase):
     def _scatter_integrand(
         self,
         zetaS: float,
-        # other variables
-        k: u.Quantity,
-        zeta0: float,
-        zetaMax: float = np.inf,
+        k: float,
+        theta_kS: float,
+        zeta_max: float = np.inf,
+        i_max: int = 100,
         **integration_kwargs,
     ):
-        """Scatter Integrand.
+        r"""Scatter Integrand.
 
-        .. |quantity| replace:: `~astropy.units.Quantity`
+        .. math::
+
+            \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
+                \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
+                     {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+
+        .. todo::
+
+            Check integration bounds
+            Pass integration kwargs down
 
         Parameters
         ----------
         zetaS : float
+            :math:`\zeta` at location of scatter.
+
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
 
         Returns
         -------
@@ -403,33 +389,173 @@ class SpectralDistortion(SpectralDistortionBase):
 
         Other Parameters
         ----------------
-        k : |quantity|
-        zeta0 : float
-
-        Notes
-        -----
-        .. todo::
-
-            Check integration bounds
-
-            Make it work on floats, not Quantities
+        zeta_max : float, optional
+            Maximum :math:`\zeta`
+        i_max : int, optional
+            Maximum index in summation
 
         """
-        kdotzhat = k[2]
-        rS = self.rMag(zetaS, zeta0)
-        g = self.GgamBarCL(zetaS) / self.PgamBarCL(zetaS)
+        kdotzhat = k * np.cos(theta_kS)
 
-        integral, _ = self.angular_integral(
-            zetaS, k=k, zetaMax=zetaMax, **integration_kwargs
+        rS: float = self._rMag_Mpc(zetaS, self.zeta0)
+        g_ratio = self.GgamBarCL(zetaS) / self.PgamBarCL(zetaS)
+
+        integral, _ = self.emission_integral(
+            zetaS,
+            k=k,
+            theta_kS=theta_kS,
+            zeta_max=zeta_max,
+            i_max=i_max,
+            **integration_kwargs,
         )
 
         return (
-            g
+            g_ratio
             * np.exp(1j * rS * kdotzhat)
             / np.sqrt((1.0 + zetaS) * zetaS ** 3)
             * integral
         )
 
+    # /def
+
+    def scatter_integral(
+        self,
+        k: float,
+        theta_kS: float,
+        *,
+        zeta_max: float = np.inf,
+        i_max: int = 100,
+        **integration_kwargs,
+    ):
+        r"""Scatter Integrand.
+
+        .. math::
+
+            \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
+                \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
+                     {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+
+        .. todo::
+
+            Check integration bounds
+            Pass integration kwargs down
+
+        Parameters
+        ----------
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
+
+        Returns
+        -------
+        ingegral : float
+            Result of integrating ``scatter_integrand``
+        residual : float
+            Integration residual.
+
+        Other Parameters
+        ----------------
+        zeta_max : float, optional, keyword only
+            Maximum :math:`\zeta`
+        i_max : int, optional, keyword only
+            Maximum index in summation.
+
+        """
+        # integrate scatter integrand
+        integral, residual = self.integration_method(
+            self._scatter_integrand,
+            # bounds
+            self.zeta0,
+            zeta_max,
+            # arguments
+            args=(k, theta_kS, zeta_max, i_max),
+            **integration_kwargs,
+        )
+        return integral, residual
+
+    # /def
+
+    # ------------------------------
+
+    @u.quantity_input(freq=u.GHz, k=1 / u.Mpc, theta_kS=u.rad)
+    def __call__(
+        self,
+        freq: QuantityType,
+        k: QuantityType,
+        theta_kS: QuantityType,
+        *,
+        zeta_max: float = np.inf,
+        i_max: int = 100,
+        **integration_kwargs,
+    ):
+        r"""Perform Calculation.
+
+        .. math::
+
+            \frac{I^{(sd)}(\nu,\hat{n})}{B_\nu(\nu, T_0)} =
+            \left(
+            \frac{\lambda_0^2 A(\vec{k})}{16\pi \bar{P}_{\gamma}^{CL}(\zeta_0)}
+            \frac{h\nu/k_B T_0}{e^{-\frac{h\nu}{k_B T_0}}-1}
+            \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
+                \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
+                     {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
+                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
+                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
+            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
+            \right.
+
+            \left.
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \right)
+
+        .. todo::
+
+            Check integration bounds
+            Pass integration kwargs down
+
+        Parameters
+        ----------
+        freq : `~astropy.units.Quantity`
+            Frequency [GHz].
+        k : float
+            :math:`k` magnitude, [1/Mpc].
+        theta_kS : float
+            Angle between :math:`k` and scattering location, [radians].
+
+        Returns
+        -------
+        `~astropy.units.Quantity`
+
+        Other Parameters
+        ----------------
+        zeta_max : float, optional, keyword only
+            Maximum :math:`\zeta`
+        i_max : int, optional, keyword only
+            Maximum index in summation.
+
+        """
+        # integrate scatter integrand
+        integral, _ = self.scatter_integral(
+            k.to(1 / u.Mpc).value,  # ensure value copy
+            theta_kS.to(u.rad).value,  # ensure value copy
+            zeta_max=zeta_max,
+            i_max=i_max,
+            **integration_kwargs,
+        )
+
+        return self.prefactor(freq=freq, k=k) * integral
+
+    compute = __call__  # alias
     # /def
 
     #######################################################
@@ -478,7 +604,6 @@ class SpectralDistortion(SpectralDistortionBase):
 
 
 # /class
-
 
 ##############################################################################
 # END
