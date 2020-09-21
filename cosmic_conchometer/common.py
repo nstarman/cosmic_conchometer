@@ -122,7 +122,7 @@ def _Ak_unity(k: np.ndarray) -> float:
         1.0
 
     """
-    return 1.0
+    return 1.0 + 0.0j
 
 
 # /def
@@ -193,7 +193,7 @@ class default_Ak(ScienceState):
         if isinstance(value, str):
             value: T.Callable = cls.get_from_str(value)
         elif callable(value):
-            cls._value: T.Callable = value
+            cls._state["value"]: T.Callable = value
         else:
             raise TypeError
 
@@ -244,8 +244,8 @@ class CosmologyDependent:
         self.zeq: float = z_matter_radiation_equality(cosmo)
         self.zeta0: float = self.zeta(0)
 
-        self.lambda0 = (const.c / cosmo.H0) * np.sqrt(
-            self.zeta0 / cosmo.Om0
+        self.lambda0 = (
+            (const.c / cosmo.H0) * np.sqrt(self.zeta0 / cosmo.Om0)
         ) << u.Mpc
         self._lambda0_Mpc = self.lambda0.to_value(u.Mpc)
 

@@ -102,7 +102,10 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
     def prefactor(
-        self, freq: QuantityType, k: QuantityType,
+        self,
+        freq: QuantityType,
+        k: QuantityType,
+        real_AK: T.Optional[bool] = None,
     ):
         r"""Combined Prefactor.
 
@@ -123,12 +126,25 @@ class SpectralDistortion(IntrinsicDistortionBase):
         `~astropy.units.Quantity`
             units of [Mpc**2 * units[AkFunc]]
 
+        Other Parameters
+        ----------------
+        real_AK : bool or None, optional
+            Whether to use the real (True) or imaginary (False) component of
+            Ak or return the whole complex factor (None, default)
+
         """
         reduced_energy = freq * const.h / (const.k_B * self.Tcmb0) << u.one
+
+        Ak = self.AkFunc(k)
+        if real_AK is True:
+            Ak = np.real(Ak)
+        elif real_AK is False:
+            Ak = np.imaginary(Ak)
+
         prefactor = (
             (reduced_energy / np.expm1(-reduced_energy))
             * self.lambda0 ** 2
-            * self.AkFunc(k)
+            * Ak
             / (16 * np.pi * self.PgamBarCL0)
         )
 
@@ -243,10 +259,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
                 \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
                                      {\sqrt{(1+\zeta_E)\zeta_E^3}}
-            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
-
-            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \mathrm{angular_sum}(\zeta_E, \zeta_S, |k|, \cos{\theta_{kS}})
 
         Parameters
         ----------
@@ -300,10 +313,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
                 \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
                                      {\sqrt{(1+\zeta_E)\zeta_E^3}}
-            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
-
-            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \ \text{angular sum}(\zeta_E, \zeta_S, |k|, \cos{\theta_{kS}})
 
         Parameters
         ----------
@@ -349,6 +359,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
         zetaS: float,
         k: float,
         theta_kS: float,
+        real: T.Optional[bool] = None,
         zeta_max: float = np.inf,
         i_max: int = 100,
         **integration_kwargs,
@@ -363,15 +374,15 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
                 \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
                                      {\sqrt{(1+\zeta_E)\zeta_E^3}}
-            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
-
-            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \ \text{angular sum}(\zeta_E, \zeta_S, |k|, \cos{\theta_{kS}})
 
         .. todo::
 
             Check integration bounds
+
             Pass integration kwargs down
+
+            Fix complex
 
         Parameters
         ----------
@@ -389,6 +400,9 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         Other Parameters
         ----------------
+        real : None or bool, optional
+            Whether to return Real (True) or Imaginary (False)
+            or Complex (None, default).
         zeta_max : float, optional
             Maximum :math:`\zeta`
         i_max : int, optional
@@ -409,12 +423,14 @@ class SpectralDistortion(IntrinsicDistortionBase):
             **integration_kwargs,
         )
 
-        return (
-            g_ratio
-            * np.exp(1j * rS * kdotzhat)
-            / np.sqrt((1.0 + zetaS) * zetaS ** 3)
-            * integral
-        )
+        if real is None:
+            expRK = np.exp(1j * rS * kdotzhat)
+        elif real:  # is True
+            expRK = np.cos(rS * kdotzhat)
+        else:
+            expRK = np.sin(rS * kdotzhat)
+
+        return g_ratio * expRK / np.sqrt((1.0 + zetaS) * zetaS ** 3) * integral
 
     # /def
 
@@ -423,6 +439,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
         k: float,
         theta_kS: float,
         *,
+        zeta_min: float = 0.0,
         zeta_max: float = np.inf,
         i_max: int = 100,
         **integration_kwargs,
@@ -434,17 +451,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
                 \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
                      {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
-            \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
-                \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
-                                     {\sqrt{(1+\zeta_E)\zeta_E^3}}
-            2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
-
-            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \text{emission integral}
+            \left(
+                \text{angular sum}(\zeta_E, \zeta_S, |k|, \cos{\theta_{kS}})
+            \right)
 
         .. todo::
 
-            Check integration bounds
             Pass integration kwargs down
 
         Parameters
@@ -463,23 +476,38 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         Other Parameters
         ----------------
-        zeta_max : float, optional, keyword only
-            Maximum :math:`\zeta`
+        zeta_min, zeta_max : float, optional, keyword only
+            Minimum / maximum :math:`\zeta`
         i_max : int, optional, keyword only
             Maximum index in summation.
 
         """
         # integrate scatter integrand
-        integral, residual = self.integration_method(
+        real_integral, real_residual = self.integration_method(
             self._scatter_integrand,
             # bounds
-            self.zeta0,
+            zeta_min,
             zeta_max,
             # arguments
-            args=(k, theta_kS, zeta_max, i_max),
+            args=(k, theta_kS, True, zeta_max, i_max),
             **integration_kwargs,
         )
-        return integral, residual
+
+        # integrate scatter integrand
+        imag_integral, imag_residual = self.integration_method(
+            self._scatter_integrand,
+            # bounds
+            zeta_min,
+            zeta_max,
+            # arguments
+            args=(k, theta_kS, False, zeta_max, i_max),
+            **integration_kwargs,
+        )
+
+        return (
+            real_integral + 1j * imag_integral,
+            (real_residual, imag_residual),
+        )
 
     # /def
 
@@ -492,6 +520,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
         k: QuantityType,
         theta_kS: QuantityType,
         *,
+        zeta_min: float = 0.0,
         zeta_max: float = np.inf,
         i_max: int = 100,
         **integration_kwargs,
@@ -518,9 +547,11 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
             \right)
 
+        The cross-terms in :math:`A(k)` with the integral cancel out.
+        Only the real-with-real and imaginary-with-imaginary remain.
+
         .. todo::
 
-            Check integration bounds
             Pass integration kwargs down
 
         Parameters
@@ -538,14 +569,15 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         Other Parameters
         ----------------
-        zeta_max : float, optional, keyword only
-            Maximum :math:`\zeta`
+        zeta_min, zeta_max : float, optional, keyword only
+            Minimum / Maximum :math:`\zeta`
         i_max : int, optional, keyword only
             Maximum index in summation.
 
         """
         # integrate scatter integrand
-        integral, _ = self.scatter_integral(
+        # (complex number)
+        res, _ = self.scatter_integral(
             k.to(1 / u.Mpc).value,  # ensure value copy
             theta_kS.to(u.rad).value,  # ensure value copy
             zeta_max=zeta_max,
@@ -553,7 +585,12 @@ class SpectralDistortion(IntrinsicDistortionBase):
             **integration_kwargs,
         )
 
-        return self.prefactor(freq=freq, k=k) * integral
+        # prefactor
+        r_prefact = self.prefactor(freq=freq, k=k, real_AK=True)
+        i_prefact = self.prefactor(freq=freq, k=k, real_AK=False)
+
+        # correctly multiply the prefactor and integral
+        return r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
 
     compute = __call__  # alias
     # /def
