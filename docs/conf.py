@@ -67,12 +67,26 @@ exclude_patterns.append("_templates")
 rst_epilog += """
 """
 
+# extensions
+extensions += [
+    "sphinx.ext.todo",
+    "nbsphinx",
+    # "IPython.sphinxext.ipython_console_highlighting",
+    "sphinx_automodapi.smart_resolver",
+    # "sphinxcontrib.bibtex",
+]
+
+# Show / hide TODO blocks
+todo_include_todos = True
+
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
 project = setup_cfg["name"]
 author = setup_cfg["author"]
-copyright = "{0}, {1}".format(datetime.datetime.now().year, setup_cfg["author"])
+copyright = "{0}, {1}".format(
+    datetime.datetime.now().year, setup_cfg["author"]
+)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -151,7 +165,9 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [("index", project.lower(), project + u" Documentation", [author], 1)]
+man_pages = [
+    ("index", project.lower(), project + u" Documentation", [author], 1)
+]
 
 
 # -- Options for the edit_on_github extension ---------------------------------
@@ -167,7 +183,10 @@ if setup_cfg.get("edit_on_github").lower() == "true":
     edit_on_github_doc_root = "docs"
 
 # -- Resolving issue number to links in changelog -----------------------------
-github_issues_url = "https://github.com/{0}/issues/".format(setup_cfg["github_project"])
+github_issues_url = "https://github.com/{0}/issues/".format(
+    setup_cfg["github_project"]
+)
+
 
 # -- Turn on nitpicky mode for sphinx (to warn about references not found) ----
 #
