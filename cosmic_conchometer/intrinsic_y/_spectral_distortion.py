@@ -37,7 +37,8 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     .. math::
 
-        \frac{I^{(sd)}(\nu,\hat{n})}{B_\nu(\nu, T_0)} =
+        I^{(sd)}(\nu,\hat{n}) =
+        {B_\nu(\nu, T_0)}
         \left(
         \frac{\lambda_0^2 A(\vec{k})}{16\pi \bar{P}_{\gamma}^{CL}(\zeta_0)}
         \frac{h\nu/k_B T_0}{e^{-\frac{h\nu}{k_B T_0}}-1}
@@ -503,7 +504,8 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         .. math::
 
-            \frac{I^{(sd)}(\nu,\hat{n})}{B_\nu(\nu, T_0)} =
+            I^{(sd)}(\nu,\hat{n}) =
+            {B_\nu(\nu, T_0)}
             \left(
             \frac{\lambda_0^2 A(\vec{k})}{16\pi \bar{P}_{\gamma}^{CL}(\zeta_0)}
             \frac{h\nu/k_B T_0}{e^{-\frac{h\nu}{k_B T_0}}-1}
@@ -563,8 +565,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
         r_prefact = self.prefactor(freq=freq, k=k, real_AK=True)
         i_prefact = self.prefactor(freq=freq, k=k, real_AK=False)
 
+        # blackbody
+        bb = self.blackbody(freq=freq, temp=self.Tcmb0)
+
         # correctly multiply the prefactor and integral
-        return r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
+        return bb * (
+            r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
+        )
 
     compute = __call__  # alias
     # /def
