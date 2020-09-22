@@ -15,11 +15,9 @@ import typing as T
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
-import scipy.integrate as integ
-from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from scipy.special import jv as besselJ
 
-from .core import IntrinsicDistortionBase, ArrayLike_Callable
+from .core import IntrinsicDistortionBase
 
 ##############################################################################
 # PARAMETERS
@@ -156,7 +154,10 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     @staticmethod
     def _angular_summand(
-        i: int, rES: float, k: float, theta_kS: float,
+        i: int,
+        rES: float,
+        k: float,
+        theta_kS: float,
     ):
         r"""Angular Summation.
 
@@ -197,7 +198,12 @@ class SpectralDistortion(IntrinsicDistortionBase):
     # /def
 
     def angular_sum(
-        self, rES: float, k: float, theta_kS: float, *, i_max: int = 100,
+        self,
+        rES: float,
+        k: float,
+        theta_kS: float,
+        *,
+        i_max: int = 100,
     ):
         r"""Angular Summation over Angular Summand.
 

@@ -23,7 +23,11 @@ from astropy.cosmology import default_cosmology
 from astropy.cosmology.core import Cosmology
 from astropy.utils.state import ScienceState
 
-from .utils import z_matter_radiation_equality, zeta_of_z
+from .utils import (
+    z_matter_radiation_equality,
+    zeta_of_z as _zeta_of_z,
+    z_of_zeta as _z_of_zeta,
+)
 
 
 ##############################################################################
@@ -86,8 +90,6 @@ def _blackbody(
 def blackbody(freq: u.Quantity, temp: u.Quantity) -> _bb_unit:
     """Blackbody.
 
-    .. |quantity| replace:: `~astropy.units.Quantity`
-
     Parameters
     ----------
     freq : |quantity|
@@ -97,6 +99,11 @@ def blackbody(freq: u.Quantity, temp: u.Quantity) -> _bb_unit:
     -------
     |quantity|
         The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
+
+    ..
+      RST SUBSTITUTIONS
+
+    .. |quantity| replace:: `~astropy.units.Quantity`
 
     """
     return _blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit
@@ -244,6 +251,7 @@ class CosmologyDependent:
         self.zeq: float = z_matter_radiation_equality(cosmo)
         self.zeta0: float = self.zeta(0)
 
+        # TODO? make this a stand-alone function
         self.lambda0 = (
             (const.c / cosmo.H0) * np.sqrt(self.zeta0 / cosmo.Om0)
         ) << u.Mpc
@@ -259,6 +267,7 @@ class CosmologyDependent:
     # /def
 
     # ------------------------------
+    # Redshifts
 
     def zeta(
         self, z: T.Union[float, np.ndarray]
@@ -275,14 +284,14 @@ class CosmologyDependent:
             same as `z` type.
 
         """
-        return zeta_of_z(z, self.zeq)
+        return _zeta_of_z(z, self.zeq)
 
     # /def
 
-    def z(
+    def z_of_zeta(
         self, zeta: T.Union[float, np.ndarray]
     ) -> T.Union[float, np.ndarray]:
-        """Zeta(z).
+        """z(zeta).
 
         Parameters
         ----------
@@ -294,11 +303,12 @@ class CosmologyDependent:
             same as `zeta` type.
 
         """
-        return zeta * (1.0 + self.zeq) - 1
+        return _z_of_zeta(zeta, self.zeq)  # TODO z_of_zeta(function)
 
     # /def
 
     # ------------------------------
+    # Distances
 
     def _rMag_Mpc(
         self, zeta1: T.Union[float, np.array], zeta2: T.Union[float, np.array]
@@ -345,8 +355,6 @@ class CosmologyDependent:
         return self._rMag_Mpc(zeta1, zeta2) * u.Mpc
 
     # /def
-
-    # ------------------------------
 
     # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
     @staticmethod

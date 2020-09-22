@@ -6,7 +6,7 @@
 
 __all__ = [
     "SpectralDistortion",
-    # "IntrinsicDistortionBase",
+    "GrayBody",
 ]
 
 
@@ -20,7 +20,7 @@ __all__ = [
 # PROJECT-SPECIFIC
 
 from ._spectral_distortion import SpectralDistortion
-# from .core import IntrinsicDistortionBase
+from ._graybody import GrayBody
 
 
 ##############################################################################

@@ -15,11 +15,14 @@ import typing as T
 import numpy as np
 import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
+from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 
 from ..common import CosmologyDependent, default_Ak
 
 ##############################################################################
 # PARAMETERS
+
+IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
 
 ArrayLike_Callable = T.Callable[
     [T.Union[float, np.ndarray]], T.Union[float, np.ndarray]
@@ -59,6 +62,9 @@ class IntrinsicDistortionBase(CosmologyDependent):
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO maybe move to superclass
 
+        # integration method
+        self.integration_method = integration_method
+
         if AkFunc is None:
             self.AkFunc: ArrayLike_Callable = default_Ak.get()
         elif isinstance(AkFunc, str) or callable(AkFunc):
@@ -67,13 +73,11 @@ class IntrinsicDistortionBase(CosmologyDependent):
         else:
             raise TypeError
 
-        # zeta array
+        # calculated quantities
         # TODO methods to set zeta array?
         thermo = class_cosmo.get_thermodynamics()
         self._zeta_arr = self.zeta(thermo["z"])
 
-        # integration method
-        self.integration_method = integration_method
 
     # /def
 
