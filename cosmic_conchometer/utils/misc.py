@@ -5,29 +5,17 @@
 __all__ = [
     "flatten_dict",
     "z_matter_radiation_equality",
-    "zeta_of_z"
+    "zeta_of_z",
 ]
 
 
 ##############################################################################
 # IMPORTS
 
-# BUILT-IN
-
 import typing as T
 
-
-# THIRD PARTY
-
-from astropy.cosmology import default_cosmology
 import numpy as np
-
-
-# PROJECT-SPECIFIC
-
-
-##############################################################################
-# PARAMETERS
+from astropy.cosmology import default_cosmology
 
 
 ##############################################################################
@@ -132,6 +120,40 @@ def zeta_of_z(
 
 
 # -------------------------------------------------------------------
+
+
+def z_of_zeta(
+    zeta: T.Union[float, np.ndarray],
+    zeq: T.Union[float, np.ndarray, None] = None,
+) -> T.Union[float, np.ndarray]:
+    r"""Redshift from reduced redshift.
+
+    :math:`\zeta = \frac{1+z}{1+z_{\mathrm{eq}}}`
+
+    .. |ndarray| replace:: `~numpy.ndarray`
+
+    Parameters
+    ----------
+    zeta : float or |ndarray|
+        The zeta
+    zeq : float or |ndarray| or None
+        The redshift at matter-radiation equality.
+        If None (default), calculates from the
+        `~astropy.cosmology.default_cosmolgy`.
+
+    Returns
+    -------
+    z : float or |ndarray|
+        ndarray if either `zeta` or `zeq` is ndarray, else float.
+
+    """
+    if zeq is None:
+        zeq: float = z_matter_radiation_equality(default_cosmology.get())
+
+    return zeta * (1.0 + zeq) - 1
+
+
+# /def
 
 ##############################################################################
 # END
