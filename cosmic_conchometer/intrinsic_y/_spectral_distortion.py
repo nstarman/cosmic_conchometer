@@ -15,9 +15,11 @@ import typing as T
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
+import scipy.integrate as integ
+from astropy.cosmology.core import Cosmology
 from scipy.special import jv as besselJ
 
-from .core import IntrinsicDistortionBase
+from .core import ArrayLike_Callable, IntrinsicDistortionBase
 
 ##############################################################################
 # PARAMETERS
@@ -52,8 +54,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
         \right.
 
         \left.
-        \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-        \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+        \sum_{m=0}^\infty
+          \frac{-1^m}{2^m m!}
+          \left(kr_{SE}\sin\theta_{kS}\tan\theta_{kS}\right)^m
+          \left[
+            (2+m) J_{\frac{3}{2}+m}(kr_{SE}\cos\theta_{kS})
+            - kr_{SE}\cos\theta_{kS} J_{\frac{5}{2}+m}(kr_{SE}\cos\theta_{kS})
+          \right]
         \right)
 
     Parameters
@@ -66,6 +73,28 @@ class SpectralDistortion(IntrinsicDistortionBase):
     integration_method : Callable
 
     """
+
+    def __init__(
+        self,
+        cosmo: Cosmology,
+        class_cosmo,
+        *,
+        AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
+        integration_method: T.Callable = integ.quad,
+    ):
+        super().__init__(
+            cosmo=cosmo,
+            class_cosmo=class_cosmo,
+            AkFunc=AkFunc,
+            integration_method=integration_method,
+        )
+
+        # vectorized angular_summand
+        self.angular_summand = np.vectorize(self._angular_summand)
+
+    # /def
+
+    # ------------------------------
 
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
     def prefactor(
@@ -121,20 +150,22 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     # ------------------------------
 
+    # @np.vectorize  # TODO implement here
     @staticmethod
     def _angular_summand(
-        i: int,
-        rES: float,
-        k: float,
-        theta_kS: float,
+        i: int, rES: float, k: float, theta_kS: float,
     ):
         r"""Angular Summation.
 
         .. math::
 
             2\left(\frac{2\pi}{k r_{SE}\cos\theta_{kS}}\right)^{3/2}
-            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!} \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
-            \left[(2+m) J_{\frac{3}{2}+m}(k r_{SE} \cos\theta_{kS}) - k r_{SE} \cos\theta_{kS} J_{\frac{5}{2}+m}(k r_{SE} \cos\theta_{kS}) \right]
+            \sum_{m=0}^\infty \frac{-1^m}{2^{m}m!}
+            \left(k r_{SE} \sin\theta_{kS}\tan\theta_{kS}\right)^m
+            \left[
+              (2+m)J_{3/2+m}(kr_{SE}\cos\theta_{kS})
+              - kr_{SE}\cos\theta_{kS} J_{5/2+m}(kr_{SE}\cos\theta_{kS})
+            \right]
 
         Parameters
         ----------
@@ -153,6 +184,10 @@ class SpectralDistortion(IntrinsicDistortionBase):
         float
             Integrand, shown above.
 
+        Note
+        ----
+        this method is vectorized with `~numpy.vectorize`
+
         """
         x = k * rES * np.cos(theta_kS)
 
@@ -167,12 +202,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
     # /def
 
     def angular_sum(
-        self,
-        rES: float,
-        k: float,
-        theta_kS: float,
-        *,
-        i_max: int = 100,
+        self, rES: float, k: float, theta_kS: float, *, i_max: int = 100,
     ):
         r"""Angular Summation over Angular Summand.
 
@@ -344,8 +374,8 @@ class SpectralDistortion(IntrinsicDistortionBase):
         .. math::
 
             \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
-                \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
-                     {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+              \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_S\hat{k}\cdot\hat{z}}}
+                   {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
             \!\!\left.\int_{\zeta_S}^{\infty}\right\vert_{\Omega_{SE}}\!\!\!\!\!\!\!
                 \rm{d}{\zeta_E} \frac{\bar{g}_\gamma^{CL}(\zeta_E)}
                                      {\sqrt{(1+\zeta_E)\zeta_E^3}}
@@ -419,13 +449,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
         i_max: int = 100,
         **integration_kwargs,
     ):
-        r"""Scatter Integrand.
+        r"""Scatter integral.
 
         .. math::
 
             \!\!\int_{\zeta_O}^{\infty} \!\!\!\! \rm{d}{\zeta_S}
-                \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_{S}\hat{k}\cdot\hat{z}}}
-                     {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
+              \frac{\bar{g}_\gamma^{CL}(\zeta_S) e^{ikr_S \hat{k}\cdot\hat{z}}}
+                   {\bar{P}_{\gamma}^{CL}(\zeta_S)\sqrt{(1+\zeta_S)\zeta_S^3}}
             \text{emission integral}
             \left(
                 \text{angular sum}(\zeta_E, \zeta_S, |k|, \cos{\theta_{kS}})
@@ -526,22 +556,18 @@ class SpectralDistortion(IntrinsicDistortionBase):
         The cross-terms in :math:`A(k)` with the integral cancel out.
         Only the real-with-real and imaginary-with-imaginary remain.
 
-        .. todo::
-
-            Pass integration kwargs down
-
         Parameters
         ----------
-        freq : `~astropy.units.Quantity`
+        freq : |Quantity|
             Frequency [GHz].
-        k : float
+        k : |Quantity|
             :math:`k` magnitude, [1/Mpc].
-        theta_kS : float
+        theta_kS : |Quantity|
             Angle between :math:`k` and scattering location, [radians].
 
         Returns
         -------
-        `~astropy.units.Quantity`
+        |Quantity|
 
         Other Parameters
         ----------------
@@ -550,9 +576,14 @@ class SpectralDistortion(IntrinsicDistortionBase):
         i_max : int, optional, keyword only
             Maximum index in summation.
 
+
+        ..
+          RST SUBSTITUTIONS
+
+        .. |Quantity| replace:: `~astropy.units.Quantity`
+
         """
-        # integrate scatter integrand
-        # (complex number)
+        # integrate scatter integrand (complex number)
         res, _ = self.scatter_integral(
             k.to(1 / u.Mpc).value,  # ensure value copy
             theta_kS.to(u.rad).value,  # ensure value copy
@@ -573,7 +604,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
         )
 
-    compute = __call__  # alias
+    # compute = __call__  # alias
     # /def
 
     #######################################################

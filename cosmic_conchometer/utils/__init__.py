@@ -20,12 +20,6 @@ __all__ = []
 ##############################################################################
 # IMPORTS
 
-# GENERAL
-
-# CUSTOM
-
-# PROJECT-SPECIFIC
-
 from . import misc
 from .misc import *  # noqa
 

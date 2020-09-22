@@ -6,6 +6,7 @@ __all__ = [
     "flatten_dict",
     "z_matter_radiation_equality",
     "zeta_of_z",
+    "z_of_zeta",
 ]
 
 

@@ -11,6 +11,7 @@ __all__ = [
 # IMPORTS
 
 import typing as T
+from collections import abstractmethod
 
 import numpy as np
 import scipy.integrate as integ
@@ -86,10 +87,19 @@ class IntrinsicDistortionBase(CosmologyDependent):
 
         self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
 
-        # vectorized angular_summand
-        self.angular_summand = np.vectorize(self._angular_summand)
-
     # /def
+
+    # ------------------------------
+
+    @abstractmethod
+    def __call__(self):
+        """Perform computation."""
+        pass
+
+    compute = __call__
+    # /def
+
+    # ------------------------------
 
 
 # /class
