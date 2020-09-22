@@ -66,38 +66,6 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     """
 
-    def __init__(
-        self,
-        cosmo,
-        class_cosmo,
-        *,
-        AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
-        integration_method=integ.quad,
-    ):
-        """Spectral Distortion."""
-        super().__init__(
-            cosmo,
-            class_cosmo,
-            AkFunc=AkFunc,
-            integration_method=integration_method,
-        )
-
-        # calculated quantities
-        thermo = self.class_cosmo.get_thermodynamics()
-
-        # TODO units
-        self.PgamBarCL: IUSType = IUS(self._zeta_arr, thermo["exp(-kappa)"])
-        self.GgamBarCL: IUSType = IUS(self._zeta_arr, thermo["g [Mpc^-1]"])
-
-        self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
-
-        # vectorized angular_summand
-        self.angular_summand = np.vectorize(self._angular_summand)
-
-    # /def
-
-    # ------------------------------
-
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
     def prefactor(
         self,

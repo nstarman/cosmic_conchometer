@@ -77,7 +77,17 @@ class IntrinsicDistortionBase(CosmologyDependent):
         # TODO methods to set zeta array?
         thermo = class_cosmo.get_thermodynamics()
         self._zeta_arr = self.zeta(thermo["z"])
+        self._PgamBar_arr = thermo["exp(-kappa)"]
+        self._GgamBar_arr = thermo["g [Mpc^-1]"]
 
+        # TODO units
+        self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
+        self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
+
+        self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
+
+        # vectorized angular_summand
+        self.angular_summand = np.vectorize(self._angular_summand)
 
     # /def
 
