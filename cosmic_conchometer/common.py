@@ -392,6 +392,79 @@ class CosmologyDependent:
 
     # /def
 
+    # ------------------------------
+    # Static Methods
+
+    @staticmethod
+    def _blackbody(
+        freq: T.Union[float, np.ndarray], temp: T.Union[float, np.ndarray]
+    ):
+        """Blackbody spectrum, without units.
+
+        Parameters
+        ----------
+        freq : array-like
+            Frequency in GHz.
+        temp : array-like
+            Temperature in K.
+
+        Returns
+        -------
+        array-like
+            The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
+
+        """
+        return _blackbody(freq, temp)
+
+    # /def
+
+    @u.quantity_input(freq="frequency", temp=u.K)
+    @staticmethod
+    def blackbody(freq: u.Quantity, temp: u.Quantity) -> _bb_unit:
+        """Blackbody spectrum.
+
+        Parameters
+        ----------
+        freq : |quantity|
+            Frequency in GHz.
+        temp : |quantity|
+            Temperature in K.
+
+        Returns
+        -------
+        |quantity|
+            The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
+
+        ..
+          RST SUBSTITUTIONS
+
+        .. |quantity| replace:: `~astropy.units.Quantity`
+
+        """
+        return blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit
+
+    # /def
+
+    @staticmethod
+    def set_AkFunc(self, value: T.Union[None, str, T.Callable]):
+        """Set the default function used in A(k).
+
+        Can be used as a contextmanager.
+
+        Parameters
+        ----------
+        value
+
+        Returns
+        -------
+        ScienceStateContext
+            Output of ``default_Ak.set``
+
+        """
+        return default_Ak.set(value)
+
+    # /def
+
 
 # /class
 
