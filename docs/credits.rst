@@ -2,9 +2,9 @@
 Authors and Credits
 *******************
 
-Main author:
+Maintainer:
 
-Nathaniel Starkman (`nstarman/cosmic_conchometer <https://github.com/nstarman/cosmic_conchometer>`_)
+Nathaniel Starkman (@`nstarman <https://github.com/nstarman/cosmic_conchometer>`_)
 
 
 Core Package Contributors
@@ -15,7 +15,7 @@ All contributors (alphabetical last name):
 * Arthur Kosowsky
 * `Glenn Starkman <https://github.com/gstarkman>`_
 * `Nathaniel Starkman <https://github.com/nstarman>`_
-  
+
 
 Credits
 =======

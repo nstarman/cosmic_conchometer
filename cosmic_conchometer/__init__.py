@@ -9,7 +9,7 @@
 #
 # ----------------------------------------------------------------------------
 
-"""cosmic_conchometer."""
+"""Cosmic Conchometer."""
 
 __author__ = "Nathaniel Starkman"
 __copyright__ = "Copyright 2020, "
@@ -22,20 +22,9 @@ __all__ = []
 ##############################################################################
 # IMPORTS
 
-# Packages may add whatever they like to this file, but
-# should keep this content at the top.
-# ----------------------------------------------------------------------------
-from ._astropy_init import *  # noqa
-
-# ----------------------------------------------------------------------------
-from .example_mod import *  # noqa
-
-# BUILT-IN
-
-# THIRD PARTY
-
-# PROJECT-SPECIFIC
-
+# keep this content at the top. (sets the __version__)
+from ._astropy_init import *  # noqa  # isort:skip
+from ._astropy_init import __version__  # noqa  # isort:skip
 
 ##############################################################################
 # END

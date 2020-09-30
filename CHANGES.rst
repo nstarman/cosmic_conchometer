@@ -1,6 +1,6 @@
-==================
-M.m.X (yyyy-mm-dd)
-==================
+================
+0.1 (2020-01-01)
+================
 
 New Features
 ------------
@@ -16,16 +16,18 @@ cosmic_conchometer
 API Changes
 -----------
 
-Contents here
+N/A
 
 
 Bug Fixes
 ---------
 
-List them
+N/A
 
 
 Other Changes and Additions
 ---------------------------
 
-List them
+Adopted `project_template <https://github.com/nstarman/project_template>`_ cookiecutter.
+
+    + Update from template. [#2]

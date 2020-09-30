@@ -1,0 +1,18 @@
+# General Labels
+GitHub:
+  - .github/**/*
+
+Notebooks:
+  - notebooks/**/*
+
+# Package Labels
+utils:
+  - cosmic_conchometer/utils/**/*
+
+
+# Docs Labels
+Docs:
+  - docs/**/*
+
+docs.utils:
+  - docs/cosmic_conchometer/utils/**/*

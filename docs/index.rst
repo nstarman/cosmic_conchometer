@@ -1,14 +1,17 @@
-##################################
-`cosmic_conchometer` Documentation
-##################################
+################################
+Cosmic Conchometer Documentation
+################################
 
-This is the documentation for cosmic_conchometer.
+This is the documentation for `cosmic_conchometer`.
 
-The package is being actively developed in a `public repository on GitHub <https://github.com/nstarman/cosmic_conchometer>`_ so if you have any trouble, `open an issue <https://github.com/nstarman/cosmic_conchometer/issues>`_ there.
+All code and data is available on a `public repository on GitHub <https://github.com/nstarman/cosmic_conchometer>`_ so if you have any trouble, `open an issue <https://github.com/nstarman/cosmic_conchometer/issues>`_ there.
 
-.. image:: https://travis-ci.org/nstarman/cosmic_conchometer.svg?branch=master
-    :target: https://travis-ci.org/nstarman/cosmic_conchometer
+.. container::
 
+    |DOI| |PyPI| |Build Status| |Codecov| |astropy|
+
+
+.. _index-documentation:
 
 *************
 Documentation
@@ -17,13 +20,15 @@ Documentation
 .. toctree::
   :maxdepth: 1
 
-  cosmic_conchometer/index.rst
-  documentation/testing.rst
+  documentation/installation
+  cosmic_conchometer/index
+  documentation/testing
 
+.. _index-modules:
 
-***********
-Subpackages
-***********
+*******
+Modules
+*******
 
 .. toctree::
    :maxdepth: 1
@@ -31,28 +36,49 @@ Subpackages
    cosmic_conchometer/data/index
 
 
+.. _index-examples:
+
+********
+Examples
+********
+
+Document example notebooks here
+
+
+.. _index-contributing:
+
 *****************
 How to contribute
 *****************
+
+|Milestones| |Open Issues| |Last Commit|
 
 We welcome contributions from anyone via pull requests on `GitHub
 <https://github.com/nstarman/cosmic_conchometer>`_. If you don't feel comfortable modifying or
 adding functionality, we also welcome feature requests and bug reports as
 `GitHub issues <https://github.com/nstarman/cosmic_conchometer/issues>`_.
 
+The development process follows that of the `astropy-package-template <https://docs.astropy.org/en/latest/development/astropy-package-template.html>`_ from Astropy's `release procedure <https://docs.astropy.org/en/latest/development/releasing.html#release-procedure>`_.
+
+
+.. _index-attribution:
 
 ***********
 Attribution
 ***********
 
-|DOI|
+|DOI| |License|
+
+Copyright 2020 - Nathaniel Starkman, Christopher Carr, Jo Bovy, Katherine Johnson and contributors.
+
+``cosmic_conchometer`` is free software made available under the BSD-3 License. For details see the `LICENSE <https://github.com/nstarman/cosmic_conchometer/blob/master/LICENSE>`_ file.
 
 If you make use of this code, please consider citing the Zenodo DOI as a software citation
 
 ::
 
    @software{zenodo,
-     author       = Nathaniel Starkman,
+     author       = Nathaniel Starkman, Christopher Carr, Jo Bovy, Katherine Johnson,
      title        = cosmic_conchometer v1.0,
      month        = month,
      year         = year,
@@ -64,6 +90,8 @@ If you make use of this code, please consider citing the Zenodo DOI as a softwar
 .. |DOI| replace:: GET FROM ZENODO
 
 
+.. _index-project_details:
+
 ***************
 Project details
 ***************
@@ -72,4 +100,33 @@ Project details
    :maxdepth: 1
 
    credits
-   whatsnew/index.rst
+   whatsnew/index
+   documentation/code_quality
+
+
+.. |astropy| image:: http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
+   :target: http://www.astropy.org/
+
+.. |Build Status| image:: https://travis-ci.com/nstarman/cosmic_conchometer.svg?branch=master
+    :target: https://travis-ci.com/nstarman/cosmic_conchometer
+
+.. |Documentation Status| image:: https://readthedocs.org/projects/cosmic_conchometer/badge/?version=latest
+   :target: https://cosmic_conchometer.readthedocs.io/en/latest/?badge=latest
+
+.. |License| image:: https://img.shields.io/badge/License-BSD%203--Clause-blue.svg
+   :target: https://opensource.org/licenses/BSD-3-Clause
+
+.. |PyPI| image:: https://badge.fury.io/py/cosmic_conchometer.svg
+   :target: https://badge.fury.io/py/cosmic_conchometer
+
+.. |Milestones| image:: https://img.shields.io/github/milestones/open/nstarman/cosmic_conchometer?style=flat
+   :alt: GitHub milestones
+
+.. |Open Issues| image:: https://img.shields.io/github/issues-raw/nstarman/cosmic_conchometer?style=flat
+   :alt: GitHub issues
+
+.. |Last Commit| image:: https://img.shields.io/github/last-commit/nstarman/cosmic_conchometer/master?style=flat
+   :alt: GitHub last commit (branch)
+
+.. |Codecov| image:: https://codecov.io/gh/nstarman/cosmic_conchometer/branch/master/graph/badge.svg
+  :target: https://codecov.io/gh/nstarman/cosmic_conchometer
