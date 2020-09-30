@@ -11,7 +11,7 @@ __all__ = [
 # IMPORTS
 
 import typing as T
-from collections import abstractmethod
+from abc import abstractmethod
 
 import numpy as np
 import scipy.integrate as integ
@@ -49,6 +49,12 @@ class IntrinsicDistortionBase(CosmologyDependent):
     ----------------
     integration_method : Callable
         The function to perform integrals.
+
+    ..
+      RST SUBSTITUTIONS
+
+    .. |NDarray| replace:: `~numpy.ndarray`
+    .. |Quantity| replace:: `~astropy.units.Quantity`
 
     """
 

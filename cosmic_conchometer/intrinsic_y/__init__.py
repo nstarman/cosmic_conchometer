@@ -6,6 +6,7 @@
 
 __all__ = [
     "SpectralDistortion",
+    "SpectralDistortionApproximation",
     "GrayBody",
 ]
 
@@ -19,7 +20,10 @@ __all__ = [
 
 # PROJECT-SPECIFIC
 
-from ._spectral_distortion import SpectralDistortion
+from ._spectral_distortion import (
+    SpectralDistortion,
+    SpectralDistortionApproximation,
+)
 from ._graybody import GrayBody
 
 

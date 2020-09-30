@@ -81,9 +81,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
     # /def
 
     def test_prefactor(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.prefactor`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.prefactor`."""
         # Should be NaN when frequency is 0
         assert np.isnan(self.instance.prefactor(0 * u.GHz, 1 / u.Mpc))
 
@@ -116,54 +114,42 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
 
     @pytest.mark.skip()
     def test__angular_summand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._angular_summand`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._angular_summand`."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_angular_sum(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.angular_sum`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.angular_sum`."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test__emission_integrand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._emission_integrand`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._emission_integrand`."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_emission_integral(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.emission_integral`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.emission_integral`."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test__scatter_integrand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._scatter_integrand`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._scatter_integrand`."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_scatter_integral(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.scatter_integral`.
-
-        """
+        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.scatter_integral`."""
         pass
 
     # /def

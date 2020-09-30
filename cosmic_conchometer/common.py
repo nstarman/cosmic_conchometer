@@ -47,6 +47,8 @@ _GHz3_h_c2_in_erg_Hzssrcm2 = (
 ).to_value(_bb_unit)
 """h / c**2 times GHz^3 in erg / Hz s sr cm^2."""
 
+QuantityType = T.TypeVar("QuantityType", u.Quantity, u.SpecificTypeQuantity)
+
 
 ##############################################################################
 # CODE
@@ -87,7 +89,7 @@ def _blackbody(
 
 
 @u.quantity_input(freq="frequency", temp=u.K)
-def blackbody(freq: u.Quantity, temp: u.Quantity) -> _bb_unit:
+def blackbody(freq: QuantityType, temp: QuantityType) -> _bb_unit:
     """Blackbody.
 
     Parameters
@@ -242,12 +244,18 @@ class CosmologyDependent:
     ----------
     cosmo : ``astropy.cosmology.Cosmology`` instance
 
+    ..
+      RST SUBSTITUTIONS
+
+    .. |NDarray| replace:: `~numpy.ndarray`
+    .. |Quantity| replace:: `~astropy.units.Quantity`
+
     """
 
     def __init__(self, cosmo: Cosmology):
         self._cosmo = cosmo
 
-        self.Tcmb0: u.Quantity = cosmo.Tcmb0
+        self.Tcmb0: QuantityType = cosmo.Tcmb0
         self.zeq: float = z_matter_radiation_equality(cosmo)
         self.zeta0: float = self.zeta(0)
 
@@ -315,16 +323,16 @@ class CosmologyDependent:
     ) -> T.Union[float, np.array]:
         """Magnitude of r.
 
-        .. |ndarray| replace:: `~numpy.ndarray`
+        .. |NDarray| replace:: `~numpy.ndarray`
 
         Parameters
         ----------
-        zeta1, zeta2 : float or |ndarray|
+        zeta1, zeta2 : float or |NDarray|
 
         Returns
         -------
-        float or |ndarray|
-            float unless `zeta1` or `zeta2` is |ndarray|
+        float or |NDarray|
+            float unless `zeta1` or `zeta2` is |NDarray|
 
         """
         return (
@@ -337,19 +345,17 @@ class CosmologyDependent:
 
     def rMag(
         self, zeta1: T.Union[float, np.array], zeta2: T.Union[float, np.array]
-    ) -> u.Quantity:
+    ) -> QuantityType:
         """Magnitude of r.
-
-        .. |ndarray| replace:: `~numpy.ndarray`
 
         Parameters
         ----------
-        zeta1, zeta2 : float or |ndarray|
+        zeta1, zeta2 : float or |NDarray|
 
         Returns
         -------
-        float or |ndarray|
-            float unless `zeta1` or `zeta2` is |ndarray|
+        float or |NDarray|
+            float unless `zeta1` or `zeta2` is |NDarray|
 
         """
         return self._rMag_Mpc(zeta1, zeta2) * u.Mpc
@@ -359,12 +365,10 @@ class CosmologyDependent:
     # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
     @staticmethod
     def rEShat(
-        thetaES: T.Union[float, np.ndarray, u.Quantity],
-        phiES: T.Union[float, np.ndarray, u.Quantity],
-    ):
+        thetaES: T.Union[float, np.ndarray, QuantityType],
+        phiES: T.Union[float, np.ndarray, QuantityType],
+    ) -> np.ndarray:
         """Direction from emission to scatter.
-
-        .. |quantity| replace:: `~astropy.units.Quantity`
 
         Parameters
         ----------
@@ -380,6 +384,12 @@ class CosmologyDependent:
         |ndarray|
             (3,) array of direction from emission to scatter.
             Unit magnitude.
+
+        ..
+          RST SUBSTITUTIONS
+
+        .. |ndarray| replace:: `~numpy.ndarray`
+        .. |quantity| replace:: `~astropy.units.Quantity`
 
         """
         return np.array(
@@ -398,7 +408,7 @@ class CosmologyDependent:
     @staticmethod
     def _blackbody(
         freq: T.Union[float, np.ndarray], temp: T.Union[float, np.ndarray]
-    ):
+    ) -> T.Union[float, np.ndarray]:
         """Blackbody spectrum, without units.
 
         Parameters
@@ -418,9 +428,9 @@ class CosmologyDependent:
 
     # /def
 
-    @u.quantity_input(freq="frequency", temp=u.K)
     @staticmethod
-    def blackbody(freq: u.Quantity, temp: u.Quantity) -> _bb_unit:
+    @u.quantity_input(freq="frequency", temp=u.K)
+    def blackbody(freq: QuantityType, temp: QuantityType) -> _bb_unit:
         """Blackbody spectrum.
 
         Parameters
@@ -434,11 +444,6 @@ class CosmologyDependent:
         -------
         |quantity|
             The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
-
-        ..
-          RST SUBSTITUTIONS
-
-        .. |quantity| replace:: `~astropy.units.Quantity`
 
         """
         return blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit

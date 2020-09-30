@@ -94,20 +94,20 @@ def zeta_of_z(
 
     :math:`\zeta = \frac{1+z}{1+z_{\mathrm{eq}}}`
 
-    .. |ndarray| replace:: `~numpy.ndarray`
+    .. |NDarray| replace:: `~numpy.ndarray`
 
     Parameters
     ----------
-    z : float or |ndarray|
+    z : float or |NDarray|
         The redshift
-    zeq : float or |ndarray| or None
+    zeq : float or |NDarray| or None
         The redshift at matter-radiation equality.
         If None (default), calculates from the
         `~astropy.cosmology.default_cosmolgy`.
 
     Returns
     -------
-    zeta : float or |ndarray|
+    zeta : float or |NDarray|
         ndarray if either `z` or `zeq` is ndarray, else float.
 
     """
@@ -131,20 +131,20 @@ def z_of_zeta(
 
     :math:`\zeta = \frac{1+z}{1+z_{\mathrm{eq}}}`
 
-    .. |ndarray| replace:: `~numpy.ndarray`
+    .. |NDarray| replace:: `~numpy.ndarray`
 
     Parameters
     ----------
-    zeta : float or |ndarray|
+    zeta : float or |NDarray|
         The zeta
-    zeq : float or |ndarray| or None
+    zeq : float or |NDarray| or None
         The redshift at matter-radiation equality.
         If None (default), calculates from the
         `~astropy.cosmology.default_cosmolgy`.
 
     Returns
     -------
-    z : float or |ndarray|
+    z : float or |NDarray|
         ndarray if either `zeta` or `zeq` is ndarray, else float.
 
     """
