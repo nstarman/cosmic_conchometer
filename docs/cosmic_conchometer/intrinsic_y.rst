@@ -13,3 +13,4 @@ Reference/API
 
 .. automodapi:: cosmic_conchometer.intrinsic_y
 	:include-all-objects:
+    :inherited-members:
