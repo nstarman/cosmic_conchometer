@@ -202,7 +202,8 @@ class default_Ak(ScienceState):
         if isinstance(value, str):
             value: T.Callable = cls.get_from_str(value)
         elif callable(value):
-            cls._state["value"]: T.Callable = value
+            # cls._state["value"]: T.Callable = value
+            cls._value: T.Callable = value
         else:
             raise TypeError
 

@@ -2,10 +2,7 @@
 
 """Spectral Distortion."""
 
-__all__ = [
-    "SpectralDistortion",
-    "SpectralDistortionApproximation"
-]
+__all__ = ["SpectralDistortion", "SpectralDistortionApproximation"]
 
 
 ##############################################################################
@@ -64,6 +61,12 @@ class SpectralDistortion(IntrinsicDistortionBase):
             \right]
         \Bigg{)}
 
+    ..
+      RST SUBSTITUTIONS
+
+    .. |NDarray| replace:: :class:`~numpy.ndarray`
+    .. |Quantity| replace:: :class:`~astropy.units.Quantity`
+
     Parameters
     ----------
     cosmo : :class:`~astropy.cosmology.core.Cosmology`
@@ -72,12 +75,6 @@ class SpectralDistortion(IntrinsicDistortionBase):
     PgamBarCL : Callable
     AkFunc: Callable or str or None, optional
     integration_method : Callable
-
-    ..
-      RST SUBSTITUTIONS
-
-    .. |NDarray| replace:: :class:`~numpy.ndarray`
-    .. |Quantity| replace:: :class:`~astropy.units.Quantity`
 
     """
 
@@ -571,11 +568,6 @@ class SpectralDistortion(IntrinsicDistortionBase):
         The cross-terms in :math:`A(k)` with the integral cancel out.
         Only the real-with-real and imaginary-with-imaginary remain.
 
-        ..
-          RST SUBSTITUTIONS
-
-        .. |Quantity| replace:: `~astropy.units.Quantity`
-
         Parameters
         ----------
         freq : |Quantity|
@@ -618,6 +610,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
         )
 
+    compute = __call__
     # /def
 
     #######################################################
@@ -672,7 +665,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
 
 class SpectralDistortionApproximation(SpectralDistortion):
-    r"""Spectral Distortion.
+    r"""Spectral Distortion with Spline Approximation.
+
+    ..
+      RST SUBSTITUTIONS
+
+    .. |NDarray| replace:: :class:`~numpy.ndarray`
+    .. |Quantity| replace:: :class:`~astropy.units.Quantity`
 
     Parameters
     ----------
@@ -682,12 +681,6 @@ class SpectralDistortionApproximation(SpectralDistortion):
     PgamBarCL : Callable
     AkFunc: Callable or str or None, optional
     integration_method : Callable
-
-    ..
-      RST SUBSTITUTIONS
-
-    .. |NDarray| replace:: :class:`~numpy.ndarray`
-    .. |Quantity| replace:: :class:`~astropy.units.Quantity`
 
     """
 
@@ -759,7 +752,6 @@ class SpectralDistortionApproximation(SpectralDistortion):
 
         prefactor = (
             (reduced_energy / np.expm1(-reduced_energy))
-            * np.pi
             * self.lambda0
             * Ak
             / self.PgamBarCL0
@@ -849,6 +841,7 @@ class SpectralDistortionApproximation(SpectralDistortion):
             / np.factorial(2 * m + 6)
         )
 
+        # TODO put this in another function!!
         # ---------------
         # x_i+1
         zetaE_ip1: float = self._zeta_arr[i + 1]
@@ -861,7 +854,7 @@ class SpectralDistortionApproximation(SpectralDistortion):
         # jm+2 - piece
         jmp2_ip1 = mpmath.hyp1f2(
             m + n / 2 + 1.5, m + 3.5, m + n / 2 + 2.5, -(x_ip1 ** 2) / 4
-        )
+        ) * x_ip1**2  # not the extra x^2
         # put it together
         Fx_ip1 = (jm_coeff * jm_ip1 + jmp2_coeff * jmp2_ip1) * np.power(
             x_ip1, 2 * m + n + 1
@@ -879,7 +872,7 @@ class SpectralDistortionApproximation(SpectralDistortion):
         # jm+2 - piece
         jmp2_i = mpmath.hyp1f2(
             m + n / 2 + 1.5, m + 3.5, m + n / 2 + 2.5, -(x_i ** 2) / 4
-        )
+        ) * x_i**2  # not the extra x^2
         # put it together
         Fx_i = (jm_coeff * jm_i + jmp2_coeff * jmp2_i) * np.power(
             x_i, 2 * m + n + 1
@@ -1139,11 +1132,6 @@ class SpectralDistortionApproximation(SpectralDistortion):
         The cross-terms in :math:`A(k)` with the integral cancel out.
         Only the real-with-real and imaginary-with-imaginary remain.
 
-        ..
-          RST SUBSTITUTIONS
-
-        .. |Quantity| replace:: `~astropy.units.Quantity`
-
         Parameters
         ----------
         freq : |Quantity|
@@ -1186,6 +1174,7 @@ class SpectralDistortionApproximation(SpectralDistortion):
             r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
         )
 
+    compute = __call__
     # /def
 
 
