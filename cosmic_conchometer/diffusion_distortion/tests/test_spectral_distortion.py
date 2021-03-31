@@ -10,17 +10,19 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
+# BUILT-IN
 import collections.abc as cabc
 import typing as T
 
+# THIRD PARTY
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
 import pytest
 
-from cosmic_conchometer import intrinsic_y
-
+# PROJECT-SPECIFIC
 from .test_core import Test_IntrinsicDistortionBase
+from cosmic_conchometer import intrinsic_y
 
 ##############################################################################
 # TESTS
@@ -99,6 +101,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
         assert self.instance.prefactor(unity_freq, 1 / u.Mpc) == expected
 
         # test when AkFunc is not unity
+        # PROJECT-SPECIFIC
         from cosmic_conchometer import default_Ak
 
         with default_Ak.set(lambda x: 0.5):

@@ -10,14 +10,17 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
+# BUILT-IN
 import typing as T
 from abc import abstractmethod
 
+# THIRD PARTY
 import numpy as np
 import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 
+# PROJECT-SPECIFIC
 from ..common import CosmologyDependent, default_Ak
 
 ##############################################################################
@@ -40,21 +43,15 @@ class IntrinsicDistortionBase(CosmologyDependent):
 
     Parameters
     ----------
-    cosmo : :class:`~astropy.cosmology.core.Cosmology` instance
+    cosmo : `~astropy.cosmology.core.Cosmology` instance
     class_cosmo : :class:`classy.Class`
     AkFunc: Callable or str or None, optional, keyword only
         The function to calculate :math:`A(\vec{k})`
 
     Other Parameters
     ----------------
-    integration_method : Callable
+    integration_method : callable
         The function to perform integrals.
-
-    ..
-      RST SUBSTITUTIONS
-
-    .. |NDarray| replace:: `~numpy.ndarray`
-    .. |Quantity| replace:: `~astropy.units.Quantity`
 
     """
 
@@ -64,13 +61,9 @@ class IntrinsicDistortionBase(CosmologyDependent):
         class_cosmo,
         *,
         AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
-        integration_method: T.Callable = integ.quad,
     ):
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO maybe move to superclass
-
-        # integration method
-        self.integration_method = integration_method
 
         if AkFunc is None:
             self.AkFunc: ArrayLike_Callable = default_Ak.get()
@@ -78,7 +71,7 @@ class IntrinsicDistortionBase(CosmologyDependent):
             with default_Ak.set(AkFunc):
                 self.AkFunc: ArrayLike_Callable = default_Ak.get()
         else:
-            raise TypeError
+            raise TypeError("AkFunc must be <None, str, callable>.")
 
         # calculated quantities
         # TODO methods to set zeta array?
@@ -87,7 +80,7 @@ class IntrinsicDistortionBase(CosmologyDependent):
         self._PgamBar_arr = thermo["exp(-kappa)"]
         self._GgamBar_arr = thermo["g [Mpc^-1]"]
 
-        # TODO units
+        # FIXME! units
         self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
         self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
 

@@ -7,19 +7,23 @@ packagename.test
 
 """
 
+# BUILT-IN
 import os
-import pytest
 
+# THIRD PARTY
+import pytest
 from astropy.version import version as astropy_version
 
 # For Astropy 3.0 and later, we can use the standalone pytest plugin
 if astropy_version < "3.0":
+    # THIRD PARTY
     from astropy.tests.pytest_plugins import *  # noqa
 
     del pytest_report_header
     ASTROPY_HEADER = True
 else:
     try:
+        # THIRD PARTY
         from pytest_astropy_header.display import (
             PYTEST_HEADER_MODULES,
             TESTED_VERSIONS,
@@ -47,6 +51,7 @@ def pytest_configure(config):
         PYTEST_HEADER_MODULES.pop("Pandas", None)
         PYTEST_HEADER_MODULES["scikit-image"] = "skimage"
 
+        # PROJECT-SPECIFIC
         from . import __version__
 
         packagename = os.path.basename(os.path.dirname(__file__))
@@ -71,6 +76,7 @@ def add_units(doctest_namespace):
 
     """
     # import
+    # THIRD PARTY
     import astropy.units
 
     # add to namespace

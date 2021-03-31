@@ -25,12 +25,14 @@
 # Thus, any C-extensions that are needed to build the documentation will *not*
 # be accessible, and the documentation will not build correctly.
 
+# BUILT-IN
+import datetime
 import os
 import sys
-import datetime
 from importlib import import_module
 
 try:
+    # THIRD PARTY
     from sphinx_astropy.conf.v1 import *  # noqa
 except ImportError:
     print(
@@ -38,6 +40,7 @@ except ImportError:
     )
     sys.exit(1)
 
+# BUILT-IN
 # Get configuration information from setup.cfg
 from configparser import ConfigParser
 

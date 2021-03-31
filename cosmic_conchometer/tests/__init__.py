@@ -17,8 +17,8 @@ __all__ = [
 
 # PROJECT-SPECIFIC
 
+# PROJECT-SPECIFIC
 from . import test_init
-
 
 ##############################################################################
 # END

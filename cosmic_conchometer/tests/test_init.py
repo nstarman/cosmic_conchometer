@@ -28,6 +28,7 @@ __all__ = [
 
 def test_has_version():
     """The most basic test."""
+    # PROJECT-SPECIFIC
     import cosmic_conchometer
 
     assert hasattr(cosmic_conchometer, "__version__"), "No version!"

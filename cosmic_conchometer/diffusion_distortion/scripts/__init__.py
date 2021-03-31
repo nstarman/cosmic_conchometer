@@ -3,28 +3,33 @@
 
 # ----------------------------------------------------------------------------
 #
-# TITLE   : Utilities
-# PROJECT : cosmic_conchometer
+# TITLE   : Diffusion Damping Distortion Scripts
+# PROJECT : Cosmic Conchometer
 #
 # ----------------------------------------------------------------------------
 
-"""Initialization file.
+"""Scripts related to the diffusion damping distortion."""
 
-This sub-module is destined for common non-package specific utility functions.
-
-"""
-
-__all__ = []
+# __all__ = [
+#     # modules
+#     "",
+#     # functions
+#     "",
+#     # other
+#     "",
+# ]
 
 
 ##############################################################################
 # IMPORTS
 
-# PROJECT-SPECIFIC
-from . import misc
-from .misc import *  # noqa
+# BUILT IN
 
-__all__ += misc.__all__
+# THIRD PARTY
+
+# FIRST PARTY
+
+# PROJECT-SPECIFIC
 
 
 ##############################################################################

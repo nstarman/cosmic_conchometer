@@ -8,16 +8,17 @@ __all__ = ["test__ArrayLike_Callable", "Test_IntrinsicDistortionBase"]
 ##############################################################################
 # IMPORTS
 
+# BUILT-IN
 import collections.abc as cabc
 import typing as T
 
+# THIRD PARTY
 import numpy as np
 import pytest
 
-from cosmic_conchometer import intrinsic_y
-
+# PROJECT-SPECIFIC
 from .utils import CLASS
-
+from cosmic_conchometer import intrinsic_y
 
 ##############################################################################
 # TESTS
@@ -60,6 +61,7 @@ class Test_IntrinsicDistortionBase:
         usually contains tests).
 
         """
+        # THIRD PARTY
         from astropy.cosmology import Planck15
 
         # input

@@ -14,8 +14,10 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
+# BUILT-IN
 import typing as T
 
+# THIRD PARTY
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
@@ -23,12 +25,10 @@ from astropy.cosmology import default_cosmology
 from astropy.cosmology.core import Cosmology
 from astropy.utils.state import ScienceState
 
-from .utils import (
-    z_matter_radiation_equality,
-    zeta_of_z as _zeta_of_z,
-    z_of_zeta as _z_of_zeta,
-)
-
+# PROJECT-SPECIFIC
+from .utils import z_matter_radiation_equality
+from .utils import z_of_zeta as _z_of_zeta
+from .utils import zeta_of_z as _zeta_of_z
 
 ##############################################################################
 # PARAMETERS

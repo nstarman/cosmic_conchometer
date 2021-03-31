@@ -13,9 +13,9 @@ __all__ = [
 ##############################################################################
 # IMPORT
 
-from .test_core import test__ArrayLike_Callable, Test_IntrinsicDistortionBase
+# PROJECT-SPECIFIC
+from .test_core import Test_IntrinsicDistortionBase, test__ArrayLike_Callable
 from .test_spectral_distortion import test__IUSType
-
 
 ##############################################################################
 # END
