@@ -33,7 +33,7 @@ from .utils import zeta_of_z as _zeta_of_z
 ##############################################################################
 # PARAMETERS
 
-with default_cosmology.set("Planck18_arXiv_v2"):
+with default_cosmology.set("Planck18"):
     default_cosmo = default_cosmology.get()
 
 
