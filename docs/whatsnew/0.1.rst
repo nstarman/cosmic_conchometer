@@ -1,10 +1,10 @@
 .. _whatsnew-0.1:
 
-******************************************
-What's New in `cosmic_conchometer` v0.1.X?
-******************************************
+********************************************
+What's New in ``cosmic_conchometer`` v0.1.X?
+********************************************
 
-Bug fixes (in X releases) are annotated with `@X`
+Bug fixes (in X releases) are annotated with ``@X``
 
 Overview
 ========

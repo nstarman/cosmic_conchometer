@@ -8,11 +8,22 @@
 
 from __future__ import absolute_import
 
-__all__ = ["HAS_TQDM"]
+# BUILT-IN
+import pathlib
+
+__all__ = [
+    "DATA_DIR",
+    # flags,
+    "HAS_TQDM",
+]
 
 
 ##############################################################################
 # PARAMETERS
+
+DATA_DIR: str = str(pathlib.Path(__file__).parent.joinpath("data"))
+
+# -------------------------------------------------------------------
 
 HAS_TQDM: bool
 try:

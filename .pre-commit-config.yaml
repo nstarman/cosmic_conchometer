@@ -38,7 +38,6 @@ repos:
     rev: 2.1.4
     hooks:
     - id: check-mailmap
-    - id: forbid-binary
     - id: script-must-have-extension
     - id: script-must-not-have-extension
     - id: shfmt
@@ -52,6 +51,11 @@ repos:
     rev: v1.5.4
     hooks:
     - id: autopep8
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.812
+    hooks:
+    -   id: mypy
 
 -   repo: https://github.com/asottile/seed-isort-config
     rev: v2.2.0
@@ -76,7 +80,7 @@ repos:
         # these are errors that will be ignored by flake8
         # check out their meaning here
         # https://flake8.pycqa.org/en/latest/user/error-codes.html
-        - "--ignore=F405,W503"
+        - "--ignore=E203,F405,W503"
         - "--exclude=*/_astropy_init.py docs/conf.py"
 
 -   repo: https://github.com/psf/black

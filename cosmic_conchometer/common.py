@@ -26,6 +26,7 @@ from astropy.cosmology.core import Cosmology
 from astropy.utils.state import ScienceState
 
 # PROJECT-SPECIFIC
+from .config import conf
 from .utils import z_matter_radiation_equality
 from .utils import z_of_zeta as _z_of_zeta
 from .utils import zeta_of_z as _zeta_of_z
@@ -33,10 +34,12 @@ from .utils import zeta_of_z as _zeta_of_z
 ##############################################################################
 # PARAMETERS
 
-with default_cosmology.set("Planck18"):
+# get the default cosmology from the configuration.
+with default_cosmology.set(conf.default_cosmo):
     default_cosmo = default_cosmology.get()
 
 
+# -----------
 # Blackbody
 _bb_unit = u.erg / (u.cm ** 2 * u.s * u.Hz * u.sr)  # default unit
 
@@ -47,8 +50,6 @@ _GHz3_h_c2_in_erg_Hzssrcm2 = (
 ).to_value(_bb_unit)
 """h / c**2 times GHz^3 in erg / Hz s sr cm^2."""
 
-QuantityType = T.TypeVar("QuantityType", u.Quantity, u.SpecificTypeQuantity)
-
 
 ##############################################################################
 # CODE
@@ -57,21 +58,22 @@ QuantityType = T.TypeVar("QuantityType", u.Quantity, u.SpecificTypeQuantity)
 
 
 def _blackbody(
-    freq: T.Union[float, np.ndarray], temp: T.Union[float, np.ndarray]
-):
-    """Blackbody, without units.
+    freq: T.Union[float, np.ndarray],
+    temp: T.Union[float, np.ndarray],
+) -> T.Union[float, np.ndarray]:
+    """Planck blackbody function, without units.
 
     Parameters
     ----------
     freq : array-like
-        Frequency in GHz.
+        Frequency (value) in GHz.
     temp : array-like
-        Temperature in K.
+        Temperature (value) in K.
 
     Returns
     -------
     array-like
-        The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
+        The blackbody (value) in units of :math:`\frac{erg}{cm^2 sr}``
 
     """
     log_boltz = _GHz_h_kB_in_K * freq / temp
@@ -88,24 +90,19 @@ def _blackbody(
 # -------------------------------------------------------------------
 
 
-@u.quantity_input(freq="frequency", temp=u.K)
-def blackbody(freq: QuantityType, temp: QuantityType) -> _bb_unit:
+@u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
+def blackbody(freq: u.Quantity, temp: u.Quantity) -> u.Quantity:
     """Blackbody.
 
     Parameters
     ----------
-    freq : |quantity|
-    temp : |quantity|
+    freq : `~astropy.units.Quantity`['frequency']
+    temp : `~astropy.units.Quantity`['temperature']
 
     Returns
     -------
-    |quantity|
-        The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
-
-    ..
-      RST SUBSTITUTIONS
-
-    .. |quantity| replace:: `~astropy.units.Quantity`
+    `~astropy.units.Quanity`
+        The blackbody in units of :math:`\frac{erg}{cm^2 sr}``
 
     """
     return _blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit
@@ -117,18 +114,18 @@ def blackbody(freq: QuantityType, temp: QuantityType) -> _bb_unit:
 #####################################################################
 
 
-def _Ak_unity(k: np.ndarray) -> float:
-    """:math:`A(k) = 1.0`.
+def _Ak_unity(k: T.Union[float, np.ndarray]) -> complex:
+    """:math:`A(k) = 1.0 + 0j`.
 
     Parameters
     ----------
-    k : `~numpy.ndarray`
+    k : array
         k vector.
 
     Returns
     -------
-    float
-        1.0
+    Ak : complex
+        (1 + 0j)
 
     """
     return 1.0 + 0.0j
@@ -154,12 +151,12 @@ class default_Ak(ScienceState):
 
     """
 
-    _default_value = "unity"
+    _default_value: str = "unity"
     """Default value for A(k)"""
-    _value = None
+    _value: T.Optional[T.Callable] = None
     """Current value of A(k)"""
 
-    _registry = {"unity": _Ak_unity}
+    _registry: T.Dict[str, T.Callable] = {"unity": _Ak_unity}
     """Registry of A(k) functions."""
 
     @classmethod
@@ -177,7 +174,8 @@ class default_Ak(ScienceState):
             Ak function
 
         """
-        return cls._registry[name]  # todo copy function?
+        Akfunc = cls._registry[name]  # todo copy function?
+        return Akfunc
 
     # /def
 
@@ -192,18 +190,18 @@ class default_Ak(ScienceState):
 
         Returns
         -------
-        Callable
+        callable
             Ak function
 
         """
         if value is None:
-            value: str = cls._default_value
+            value = cls._default_value
 
         if isinstance(value, str):
-            value: T.Callable = cls.get_from_str(value)
+            value = cls.get_from_str(value)
         elif callable(value):
             # cls._state["value"]: T.Callable = value
-            cls._value: T.Callable = value
+            cls._value = value
         else:
             raise TypeError
 
@@ -212,14 +210,19 @@ class default_Ak(ScienceState):
     # /def
 
     @classmethod
-    def register(cls, name: str, AkFunc: T.Callable, overwrite: bool = False):
+    def register(
+        cls,
+        name: str,
+        AkFunc: T.Callable,
+        overwrite: bool = False,
+    ) -> None:
         """Register Ak function.
 
         Parameters
         ----------
         name : str
             Name of Ak function for registry
-        AkFunc : Callable
+        AkFunc : callable
             Ak func
         overwrite : bool
             Whether to overwrite the Ak function, if already in the registry.
@@ -243,21 +246,15 @@ class CosmologyDependent:
 
     Parameters
     ----------
-    cosmo : ``astropy.cosmology.Cosmology`` instance
-
-    ..
-      RST SUBSTITUTIONS
-
-    .. |NDarray| replace:: `~numpy.ndarray`
-    .. |Quantity| replace:: `~astropy.units.Quantity`
+    cosmo : `~astropy.cosmology.core.Cosmology` instance
 
     """
 
     def __init__(self, cosmo: Cosmology):
         self._cosmo = cosmo
 
-        self.Tcmb0: QuantityType = cosmo.Tcmb0
-        self.zeq: float = z_matter_radiation_equality(cosmo)
+        self.Tcmb0: u.Quantity = cosmo.Tcmb0
+        self.zeq: float = z_matter_radiation_equality(cosmo)[0]
         self.zeta0: float = self.zeta(0)
 
         # TODO? make this a stand-alone function
@@ -279,7 +276,8 @@ class CosmologyDependent:
     # Redshifts
 
     def zeta(
-        self, z: T.Union[float, np.ndarray]
+        self,
+        z: T.Union[float, np.ndarray],
     ) -> T.Union[float, np.ndarray]:
         """Zeta(z).
 
@@ -298,7 +296,8 @@ class CosmologyDependent:
     # /def
 
     def z_of_zeta(
-        self, zeta: T.Union[float, np.ndarray]
+        self,
+        zeta: T.Union[float, np.ndarray],
     ) -> T.Union[float, np.ndarray]:
         """z(zeta).
 
@@ -320,20 +319,20 @@ class CosmologyDependent:
     # Distances
 
     def _rMag_Mpc(
-        self, zeta1: T.Union[float, np.array], zeta2: T.Union[float, np.array]
+        self,
+        zeta1: T.Union[float, np.array],
+        zeta2: T.Union[float, np.array],
     ) -> T.Union[float, np.array]:
         """Magnitude of r.
 
-        .. |NDarray| replace:: `~numpy.ndarray`
-
         Parameters
         ----------
-        zeta1, zeta2 : float or |NDarray|
+        zeta1, zeta2 : float or array
 
         Returns
         -------
-        float or |NDarray|
-            float unless `zeta1` or `zeta2` is |NDarray|
+        float or array
+            float unless `zeta1` or `zeta2` is `~numpy.array`
 
         """
         return (
@@ -345,18 +344,20 @@ class CosmologyDependent:
     # /def
 
     def rMag(
-        self, zeta1: T.Union[float, np.array], zeta2: T.Union[float, np.array]
-    ) -> QuantityType:
+        self,
+        zeta1: T.Union[float, np.array],
+        zeta2: T.Union[float, np.array],
+    ) -> u.Quantity:
         """Magnitude of r.
 
         Parameters
         ----------
-        zeta1, zeta2 : float or |NDarray|
+        zeta1, zeta2 : float or array
 
         Returns
         -------
-        float or |NDarray|
-            float unless `zeta1` or `zeta2` is |NDarray|
+        float or array
+            float unless `zeta1` or `zeta2` is `~numpy.array`
 
         """
         return self._rMag_Mpc(zeta1, zeta2) * u.Mpc
@@ -366,14 +367,14 @@ class CosmologyDependent:
     # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
     @staticmethod
     def rEShat(
-        thetaES: T.Union[float, np.ndarray, QuantityType],
-        phiES: T.Union[float, np.ndarray, QuantityType],
+        thetaES: T.Union[float, np.ndarray, u.Quantity],
+        phiES: T.Union[float, np.ndarray, u.Quantity],
     ) -> np.ndarray:
         """Direction from emission to scatter.
 
         Parameters
         ----------
-        thetaES, phiES : |quantity|
+        thetaES, phiES : `~astropy.units.Quantity`
             In degrees
 
             .. todo::
@@ -382,15 +383,9 @@ class CosmologyDependent:
 
         Returns
         -------
-        |ndarray|
+        array
             (3,) array of direction from emission to scatter.
             Unit magnitude.
-
-        ..
-          RST SUBSTITUTIONS
-
-        .. |ndarray| replace:: `~numpy.ndarray`
-        .. |quantity| replace:: `~astropy.units.Quantity`
 
         """
         return np.array(
@@ -398,7 +393,7 @@ class CosmologyDependent:
                 np.sin(thetaES) * np.cos(phiES),
                 np.sin(thetaES) * np.sin(phiES),
                 np.cos(thetaES),
-            ]
+            ],
         )
 
     # /def
@@ -408,7 +403,8 @@ class CosmologyDependent:
 
     @staticmethod
     def _blackbody(
-        freq: T.Union[float, np.ndarray], temp: T.Union[float, np.ndarray]
+        freq: T.Union[float, np.ndarray],
+        temp: T.Union[float, np.ndarray],
     ) -> T.Union[float, np.ndarray]:
         """Blackbody spectrum, without units.
 
@@ -430,29 +426,30 @@ class CosmologyDependent:
     # /def
 
     @staticmethod
-    @u.quantity_input(freq="frequency", temp=u.K)
-    def blackbody(freq: QuantityType, temp: QuantityType) -> _bb_unit:
+    @u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
+    def blackbody(freq: u.Quantity, temp: u.Quantity) -> u.Quantity:
         """Blackbody spectrum.
 
         Parameters
         ----------
-        freq : |quantity|
+        freq : `~astropy.units.Quantity`
             Frequency in GHz.
-        temp : |quantity|
+        temp : `~astropy.units.Quantity`
             Temperature in K.
 
         Returns
         -------
-        |quantity|
+        `~astropy.units.Quanity`
             The blackbody in units of ``erg / (cm ** 2 * s * Hz * sr)``
 
         """
-        return blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit
+        bb = blackbody(freq.to_value(u.GHz), temp.to_value(u.K)) * _bb_unit
+        return bb
 
     # /def
 
-    @staticmethod
-    def set_AkFunc(self, value: T.Union[None, str, T.Callable]):
+    # @staticmethod
+    def set_AkFunc(self, value: T.Union[None, str, T.Callable]) -> T.Callable:
         """Set the default function used in A(k).
 
         Can be used as a contextmanager.
@@ -467,7 +464,8 @@ class CosmologyDependent:
             Output of ``default_Ak.set``
 
         """
-        return default_Ak.set(value)
+        Akfunc: T.Callable = default_Ak.set(value)
+        return Akfunc
 
     # /def
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # see LICENSE.rst
 
-"""Configuration."""
+"""Package Configurations."""
 
 
 ##############################################################################

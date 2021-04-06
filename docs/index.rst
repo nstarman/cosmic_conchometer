@@ -1,6 +1,6 @@
-##################################
-`cosmic_conchometer` Documentation
-##################################
+####################################
+``cosmic_conchometer`` Documentation
+####################################
 
 This is the documentation for cosmic_conchometer.
 
@@ -32,7 +32,7 @@ Subpackages
    :maxdepth: 1
 
    cosmic_conchometer/data
-   cosmic_conchometer/intrinsic_y
+   cosmic_conchometer/diffusion_distortion
 
 
 ***********

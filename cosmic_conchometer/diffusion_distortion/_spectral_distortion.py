@@ -10,14 +10,14 @@ __all__ = ["SpectralDistortion"]
 
 # BUILT-IN
 import typing as T
-import warnings
 
 # THIRD PARTY
-import astropy.constants as const
 import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
-from mpmath import hyp1f2, hyp2f2
+from classy import Class
+from mpmath import hyp2f2
+from numpy import exp, pi, power, sqrt
 from scipy.special import gamma
 from scipy.special import spherical_jn as besselJ
 
@@ -28,7 +28,6 @@ from .core import ArrayLike_Callable, IntrinsicDistortionBase
 # PARAMETERS
 
 IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
-QuantityType = T.TypeVar("Quantity", u.Quantity, u.SpecificTypeQuantity)
 
 ##############################################################################
 # CODE
@@ -37,20 +36,33 @@ QuantityType = T.TypeVar("Quantity", u.Quantity, u.SpecificTypeQuantity)
 
 @np.vectorize
 def _scriptC_individual(
-    betaDelta: float, M: int, m: int, rhoES: int, l: int
+    betaDelta: float,
+    M: int,
+    m: int,
+    rhoES: int,
+    L: int,
 ) -> float:
-    """Eqn 115 of https://www.overleaf.com/project/5efe491b4140390001b1c892
+    r"""Eqn 115 of https://www.overleaf.com/project/5efe491b4140390001b1c892
 
     TODO! there are two copies of this function, the other is in scripts.
     Validate that they are the same with a test on the __code__.
 
     .. math::
 
-        \frac{1}{\beta\Delta} \Bigg[\tilde{\rho}_{ES}^{M} \Exp{i\beta\Delta\tilde{\rho}_{ES}} j_{m+1}(\beta\Delta \tilde{\rho}_{ES})\Bigg]
-        - \frac{\sqrt{\pi } \tilde{\rho}_{ES}^{M+1} (\beta\Delta \tilde{\rho}_{ES})^m}{2^{m+2}  \Gamma \left(\frac{2m\!+\!5}{2}\right)}
+        \frac{1}{\beta\Delta} \Bigg[
+            \tilde{\rho}_{ES}^{M} \Exp{i\beta\Delta\tilde{\rho}_{ES}}
+            j_{m+1}(\beta\Delta \tilde{\rho}_{ES})\
+        \Bigg]
+        - \frac{\sqrt{\pi}\tilde{\rho}_{ES}^{M+1}(\beta\Delta \tilde{\rho}_{ES})^m}
+               {2^{m+2}
+           \Gamma \left(\frac{2m\!+\!5}{2}\right)}
         \Bigg[
-            \frac{i\beta\Delta \tilde{\rho}_{ES}}{(M\!+\!m\!+\!2)} \, {_2F_2}(m\!+\!2,m\!+\!M\!+\!2;2m\!+\!4,m\!+\!M\!+\!3;2i \beta\Delta \tilde{\rho}_{ES})
-            -\frac{2m^2\!+\!6m\!-\!M\!+\!5}{(M\!+\!m\!+\!1)} \, {_2F_2}(m\!+\!2,m\!+\!M\!+\!1;2m\!+\!4,m\!+\!M\!+\!2;2i \beta\Delta \tilde{\rho}_{ES})
+            \frac{i\beta\Delta \tilde{\rho}_{ES}}{(M\!+\!m\!+\!2)} \,
+            {_2F_2}(m\!+\!2,m\!+\!M\!+\!2;2m\!+\!4,m\!+\!M\!+\!3;
+                    2i \beta\Delta \tilde{\rho}_{ES})
+            - \frac{2m^2\!+\!6m\!-\!M\!+\!5}{(M\!+\!m\!+\!1)} \,
+            {_2F_2}(m\!+\!2,m\!+\!M\!+\!1;2m\!+\!4,m\!+\!M\!+\!2;
+                    2i \beta\Delta \tilde{\rho}_{ES})
         \Bigg]
 
     Parameters
@@ -72,7 +84,7 @@ def _scriptC_individual(
 
     """
     x = betaDelta * rhoES
-    prefactor = power(rhoES / (l + 1), M)
+    prefactor = power(rhoES / (L + 1), M)
 
     t1 = exp(1j * x) * besselJ(m + 1, x) / power(betaDelta, m + 1)
     t2 = sqrt(pi) / power(2, m + 2) * power(rhoES, m + 1) / gamma(m + 2.5)
@@ -88,23 +100,33 @@ def _scriptC_individual(
         * hyp2f2(m + 2, m + M + 1, 2 * m + 4, m + M + 2, 2j * x)
     )
 
-    return prefactor * (t1 - t2 * (t3 - t4))
+    c: float = prefactor * (t1 - t2 * (t3 - t4))
+    return c
 
 
 # /def
 
 
 @np.vectorize
-def _scriptC(bD: float, M: int, m: int, l: int) -> float:
-    """Eqn 115 of https://www.overleaf.com/project/5efe491b4140390001b1c892
+def _scriptC(bD: float, M: int, m: int, L: int) -> float:
+    r"""Eqn 115 of https://www.overleaf.com/project/5efe491b4140390001b1c892
 
     .. math::
 
-        \frac{1}{\beta\Delta} \Bigg[\tilde{\rho}_{ES}^{M} \Exp{i\beta\Delta\tilde{\rho}_{ES}} j_{m+1}(\beta\Delta \tilde{\rho}_{ES})\Bigg]
-        - \frac{\sqrt{\pi } \tilde{\rho}_{ES}^{M+1} (\beta\Delta \tilde{\rho}_{ES})^m}{2^{m+2}  \Gamma \left(\frac{2m\!+\!5}{2}\right)}
+        \frac{1}{\beta\Delta} \Bigg[
+            \tilde{\rho}_{ES}^{M} \Exp{i\beta\Delta\tilde{\rho}_{ES}}
+            j_{m+1}(\beta\Delta \tilde{\rho}_{ES})\
+        \Bigg]
+        - \frac{\sqrt{\pi}\tilde{\rho}_{ES}^{M+1}(\beta\Delta \tilde{\rho}_{ES})^m}
+               {2^{m+2}
+           \Gamma \left(\frac{2m\!+\!5}{2}\right)}
         \Bigg[
-            \frac{i\beta\Delta \tilde{\rho}_{ES}}{(M\!+\!m\!+\!2)} \, {_2F_2}(m\!+\!2,m\!+\!M\!+\!2;2m\!+\!4,m\!+\!M\!+\!3;2i \beta\Delta \tilde{\rho}_{ES})
-            -\frac{2m^2\!+\!6m\!-\!M\!+\!5}{(M\!+\!m\!+\!1)} \, {_2F_2}(m\!+\!2,m\!+\!M\!+\!1;2m\!+\!4,m\!+\!M\!+\!2;2i \beta\Delta \tilde{\rho}_{ES})
+            \frac{i\beta\Delta \tilde{\rho}_{ES}}{(M\!+\!m\!+\!2)} \,
+            {_2F_2}(m\!+\!2,m\!+\!M\!+\!2;2m\!+\!4,m\!+\!M\!+\!3;
+                    2i \beta\Delta \tilde{\rho}_{ES})
+            - \frac{2m^2\!+\!6m\!-\!M\!+\!5}{(M\!+\!m\!+\!1)} \,
+            {_2F_2}(m\!+\!2,m\!+\!M\!+\!1;2m\!+\!4,m\!+\!M\!+\!2;
+                    2i \beta\Delta \tilde{\rho}_{ES})
         \Bigg]
 
     Parameters
@@ -117,7 +139,7 @@ def _scriptC(bD: float, M: int, m: int, l: int) -> float:
 
     M : int
     m : int
-    l : int
+    L : int
 
     Returns
     -------
@@ -125,9 +147,17 @@ def _scriptC(bD: float, M: int, m: int, l: int) -> float:
 
     """
 
-    return +_scriptC_individual(
-        bD, M, m, rhoES=l + 1, l=l
-    ) - _scriptC_individual(bD, M, m, rhoES=l, l=l)
+    c: float = (
+        +_scriptC_individual(
+            bD,
+            M,
+            m,
+            rhoES=L + 1,
+            L=L,
+        )
+        - _scriptC_individual(bD, M, m, rhoES=L, L=L)
+    )
+    return c
 
 
 # /def
@@ -136,7 +166,7 @@ def _scriptC(bD: float, M: int, m: int, l: int) -> float:
 
 
 class SpectralDistortion(IntrinsicDistortionBase):
-    r"""Spectral Distortion.
+    """Spectral Distortion.
 
     Parameters
     ----------
@@ -145,17 +175,17 @@ class SpectralDistortion(IntrinsicDistortionBase):
     class_cosmo : :class:`~classy.Class`
     GgamBarCL : Callable
     PgamBarCL : Callable
-    AkFunc: Callable or str or None, optional
+    AkFunc: Callable or str or None (optional)
 
     """
 
     def __init__(
         self,
         cosmo: Cosmology,
-        class_cosmo,
+        class_cosmo: Class,
         *,
         AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
-    ):
+    ) -> None:
         super().__init__(
             cosmo=cosmo,
             class_cosmo=class_cosmo,
@@ -169,10 +199,10 @@ class SpectralDistortion(IntrinsicDistortionBase):
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
     def prefactor(
         self,
-        freq: QuantityType,
-        k: QuantityType,
+        freq: u.Quantity,
+        k: u.Quantity,
         real_AK: T.Optional[bool] = None,
-    ):
+    ) -> u.Quantity:
         r"""Combined Prefactor.
 
         .. math::
@@ -194,7 +224,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         Other Parameters
         ----------------
-        real_AK : bool or None, optional
+        real_AK : bool or None (optional)
             Whether to use the real (True) or imaginary (False) component of
             Ak or return the whole complex factor (None, default)
 
@@ -227,15 +257,15 @@ class SpectralDistortion(IntrinsicDistortionBase):
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc, theta_kS=u.rad)
     def __call__(
         self,
-        freq: QuantityType,
-        k: QuantityType,
-        theta_kS: QuantityType,
+        freq: u.Quantity,
+        k: u.Quantity,
+        theta_kS: u.Quantity,
         *,
         zeta_min: float = 0.0,
         zeta_max: float = np.inf,
         m_max: int = 100,
-        **integration_kwargs,
-    ):
+        **integration_kwargs: T.Any,
+    ) -> u.Quantity:
         r"""Perform Calculation.
 
         The cross-terms in :math:`A(k)` with the integral cancel out.
@@ -256,9 +286,9 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
         Other Parameters
         ----------------
-        zeta_min, zeta_max : float, optional, keyword only
+        zeta_min, zeta_max : float (optional, keyword-only)
             Minimum / Maximum :math:`\zeta`
-        m_max : int, optional, keyword only
+        m_max : int (optional, keyword-only)
             Maximum index in summation.
 
         """
@@ -289,7 +319,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     #######################################################
 
-    def plot_PgamBarCL(self, plot_times: bool = False):
+    def plot_PgamBarCL(self, plot_times: bool = False) -> None:
         # THIRD PARTY
         import matplotlib.pyplot as plt
 
@@ -311,7 +341,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     # /def
 
-    def plot_GgamBarCL(self, plot_times: bool = False):
+    def plot_GgamBarCL(self, plot_times: bool = False) -> None:
         # THIRD PARTY
         import matplotlib.pyplot as plt
 

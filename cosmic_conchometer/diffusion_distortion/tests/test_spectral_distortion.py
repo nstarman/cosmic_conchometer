@@ -22,7 +22,7 @@ import pytest
 
 # PROJECT-SPECIFIC
 from .test_core import Test_IntrinsicDistortionBase
-from cosmic_conchometer import intrinsic_y
+from cosmic_conchometer import diffusion_distortion
 
 ##############################################################################
 # TESTS
@@ -30,8 +30,8 @@ from cosmic_conchometer import intrinsic_y
 
 
 def test__IUSType():
-    """Test `~cosmic_conchometer.intrinsic_y._spectral_distortion._IUSType`."""
-    _IUSType = intrinsic_y._spectral_distortion._IUSType
+    """Test `~cosmic_conchometer.diffusion_distortion._spectral_distortion._IUSType`."""
+    _IUSType = diffusion_distortion._spectral_distortion._IUSType
 
     assert T.get_origin(_IUSType) == cabc.Callable
 
@@ -52,9 +52,9 @@ def test__IUSType():
 
 
 class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
-    """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion`."""
+    """Test `~cosmic_conchometer.diffusion_distortion.SpectralDistortion`."""
 
-    _cls = intrinsic_y.SpectralDistortion
+    _cls = diffusion_distortion.SpectralDistortion
 
     def test_instantiation(self):
         """Test class instantiation options, including exceptions."""
@@ -83,7 +83,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
     # /def
 
     def test_prefactor(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.prefactor`."""
+        """Test ``prefactor``."""
         # Should be NaN when frequency is 0
         assert np.isnan(self.instance.prefactor(0 * u.GHz, 1 / u.Mpc))
 
@@ -117,49 +117,49 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
 
     @pytest.mark.skip()
     def test__angular_summand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._angular_summand`."""
+        """Test ``_angular_summand``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_angular_sum(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.angular_sum`."""
+        """Test ``angular_sum``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test__emission_integrand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._emission_integrand`."""
+        """Test ``_emission_integrand``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_emission_integral(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.emission_integral`."""
+        """Test ``emission_integral``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test__scatter_integrand(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion._scatter_integrand`."""
+        """Test ``_scatter_integrand``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_scatter_integral(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.scatter_integral`."""
+        """Test ``scatter_integral``."""
         pass
 
     # /def
 
     @pytest.mark.skip()
     def test_compute(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.compute`.
+        """Test ``compute``.
 
         Compute is same as ``__call__``.
 
@@ -170,7 +170,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
 
     @pytest.mark.skip()
     def test_plot_PgamBarCL(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.plot_PgamBarCL`.
+        """Test ``plot_PgamBarCL``.
 
         .. todo::
 
@@ -183,7 +183,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
 
     @pytest.mark.skip()
     def test_plot_GgamBarCL(self):
-        """Test `~cosmic_conchometer.intrinsic_y.SpectralDistortion.plot_GgamBarCL`.
+        """Test ``plot_GgamBarCL``.
 
         .. todo::
 

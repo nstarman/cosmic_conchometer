@@ -18,7 +18,7 @@ import pytest
 
 # PROJECT-SPECIFIC
 from .utils import CLASS
-from cosmic_conchometer import intrinsic_y
+from cosmic_conchometer import diffusion_distortion
 
 ##############################################################################
 # TESTS
@@ -26,8 +26,8 @@ from cosmic_conchometer import intrinsic_y
 
 
 def test__ArrayLike_Callable():
-    """Test `~cosmic_conchometer.intrinsic_y.core._ArrayLike_Callable`."""
-    AC = intrinsic_y.core._ArrayLike_Callable
+    """Test `~cosmic_conchometer.diffusion_distortion.core._ArrayLike_Callable`."""
+    AC = diffusion_distortion.core._ArrayLike_Callable
 
     assert T.get_origin(AC) == cabc.Callable
 
@@ -49,9 +49,9 @@ def test__ArrayLike_Callable():
 
 
 class Test_IntrinsicDistortionBase:
-    """Test `~cosmic_conchometer.intrinsic_y.core.IntrinsicDistortionBase`."""
+    """Test `~cosmic_conchometer.diffusion_distortion.core.IntrinsicDistortionBase`."""
 
-    _cls = intrinsic_y.core.IntrinsicDistortionBase
+    _cls = diffusion_distortion.core.IntrinsicDistortionBase
 
     @classmethod
     def setup_class(cls):

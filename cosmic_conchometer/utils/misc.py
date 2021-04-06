@@ -19,6 +19,7 @@ import typing as T
 # THIRD PARTY
 import numpy as np
 from astropy.cosmology import default_cosmology
+from astropy.cosmology.core import Cosmology
 
 ##############################################################################
 # CODE
@@ -44,12 +45,12 @@ def flatten_dict(d: dict) -> dict:
 
 
 def z_matter_radiation_equality(
-    cosmo,
+    cosmo: Cosmology,
     zmin: float = 1e3,
     zmax: float = 1e4,
     full_output: bool = False,
-    **rootkw,
-):
+    **rootkw: T.Any,
+) -> T.Tuple[float, T.Tuple[T.Any, ...]]:
     """Calculate matter-radiation equality for a given cosmology.
 
     Parameters
@@ -68,8 +69,8 @@ def z_matter_radiation_equality(
     -------
     z_eq : float
         If `full_output` is False
-    Any
-        Full results of root finder if `full_outpyt` is True
+    tuple
+        Full results of root finder if `full_output` is True
 
     """
     # import rootfinder
@@ -77,10 +78,15 @@ def z_matter_radiation_equality(
     from scipy.optimize import brentq
 
     # residual function
-    def f(z):
-        return cosmo.Om(z) - cosmo.Ogamma(z)
+    def f(z: float) -> float:
+        diff: float = cosmo.Om(z) - cosmo.Ogamma(z)
+        return diff
 
-    return brentq(f, zmin, zmax, full_output=full_output, **rootkw)
+    z_eq: float
+    rest: T.Tuple[T.Any, ...]
+    res, *rest = brentq(f, zmin, zmax, full_output=full_output, **rootkw)
+
+    return res, rest
 
 
 # /def
@@ -90,7 +96,8 @@ def z_matter_radiation_equality(
 
 
 def zeta_of_z(
-    z: T.Union[float, np.ndarray], zeq: T.Union[float, np.ndarray, None] = None
+    z: T.Union[float, np.ndarray],
+    zeq: T.Union[float, np.ndarray, None] = None,
 ) -> T.Union[float, np.ndarray]:
     r"""Reduced redshift, scaled by matter-radiation equality.
 
@@ -113,10 +120,13 @@ def zeta_of_z(
         ndarray if either `z` or `zeq` is ndarray, else float.
 
     """
-    if zeq is None:
-        zeq: float = z_matter_radiation_equality(default_cosmology.get())
+    _zeq: float = (
+        z_matter_radiation_equality(default_cosmology.get())[0]
+        if zeq is None
+        else zeq
+    )
 
-    return (1.0 + z) / (1.0 + zeq)
+    return (1.0 + z) / (1.0 + _zeq)
 
 
 # /def
@@ -150,10 +160,13 @@ def z_of_zeta(
         ndarray if either `zeta` or `zeq` is ndarray, else float.
 
     """
-    if zeq is None:
-        zeq: float = z_matter_radiation_equality(default_cosmology.get())
+    _zeq: float = (
+        z_matter_radiation_equality(default_cosmology.get())[0]
+        if zeq is None
+        else zeq
+    )
 
-    return zeta * (1.0 + zeq) - 1
+    return zeta * (1.0 + _zeq) - 1
 
 
 # /def

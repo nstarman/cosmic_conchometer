@@ -1,8 +1,8 @@
 .. cosmic_conchometer-module-index:
 
-********************
-`cosmic_conchometer`
-********************
+**********************
+``cosmic_conchometer``
+**********************
 
 .. currentmodule:: cosmic_conchometer
 
@@ -28,4 +28,4 @@ Subpackages
    :maxdepth: 1
 
    data
-   intrinsic_y
+   diffusion_distortion

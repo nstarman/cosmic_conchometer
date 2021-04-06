@@ -22,7 +22,7 @@ __all__ = []
 
 # PROJECT-SPECIFIC
 from . import misc
-from .misc import *  # noqa
+from .misc import *  # noqa: F401, F403
 
 __all__ += misc.__all__
 

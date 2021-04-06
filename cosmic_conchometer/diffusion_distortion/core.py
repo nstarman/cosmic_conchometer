@@ -15,13 +15,14 @@ import typing as T
 from abc import abstractmethod
 
 # THIRD PARTY
+import astropy.units as u
 import numpy as np
-import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
+from classy import Class
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 
 # PROJECT-SPECIFIC
-from ..common import CosmologyDependent, default_Ak
+from cosmic_conchometer.common import CosmologyDependent, default_Ak
 
 ##############################################################################
 # PARAMETERS
@@ -29,7 +30,8 @@ from ..common import CosmologyDependent, default_Ak
 IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
 
 ArrayLike_Callable = T.Callable[
-    [T.Union[float, np.ndarray]], T.Union[float, np.ndarray]
+    [T.Union[float, np.ndarray]],
+    T.Union[float, np.ndarray],
 ]
 
 
@@ -45,7 +47,7 @@ class IntrinsicDistortionBase(CosmologyDependent):
     ----------
     cosmo : `~astropy.cosmology.core.Cosmology` instance
     class_cosmo : :class:`classy.Class`
-    AkFunc: Callable or str or None, optional, keyword only
+    AkFunc: Callable or str or None (optional, keyword-only)
         The function to calculate :math:`A(\vec{k})`
 
     Other Parameters
@@ -58,18 +60,19 @@ class IntrinsicDistortionBase(CosmologyDependent):
     def __init__(
         self,
         cosmo: Cosmology,
-        class_cosmo,
+        class_cosmo: Class,
         *,
         AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
-    ):
+    ) -> None:
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO maybe move to superclass
 
+        self.AkFunc: ArrayLike_Callable
         if AkFunc is None:
-            self.AkFunc: ArrayLike_Callable = default_Ak.get()
+            self.AkFunc = default_Ak.get()
         elif isinstance(AkFunc, str) or callable(AkFunc):
             with default_Ak.set(AkFunc):
-                self.AkFunc: ArrayLike_Callable = default_Ak.get()
+                self.AkFunc = default_Ak.get()
         else:
             raise TypeError("AkFunc must be <None, str, callable>.")
 
@@ -91,7 +94,7 @@ class IntrinsicDistortionBase(CosmologyDependent):
     # ------------------------------
 
     @abstractmethod
-    def __call__(self):
+    def __call__(self) -> u.Quantity:
         """Perform computation."""
         pass
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Utilities for Testing :mod:`~cosmic_conchometer.intrinsic_y`."""
+"""Utilities for testing :mod:`~cosmic_conchometer.diffusion_distortion`."""
 
 __all__ = [
     "CLASS",

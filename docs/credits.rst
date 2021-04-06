@@ -19,7 +19,7 @@ All contributors (alphabetical last name):
 * Arthur Kosowsky
 * `Glenn Starkman <https://github.com/gstarkman>`_
 * `Nathaniel Starkman <https://github.com/nstarman>`_
-  
+
 
 Credits
 =======

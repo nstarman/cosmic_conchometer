@@ -29,16 +29,20 @@
 import datetime
 import os
 import sys
+import typing as T
 from importlib import import_module
 
 try:
     # THIRD PARTY
-    from sphinx_astropy.conf.v1 import *  # noqa
+    from sphinx_astropy.conf.v1 import *  # noqa: F401, F403
 except ImportError:
     print(
-        "ERROR: the documentation requires the sphinx-astropy package to be installed"
+        "ERROR: the documentation requires the sphinx-astropy package to be installed",
     )
     sys.exit(1)
+else:
+    from sphinx_astropy.conf.v1 import exclude_patterns, rst_epilog, extensions
+
 
 # BUILT-IN
 # Get configuration information from setup.cfg
@@ -47,12 +51,12 @@ from configparser import ConfigParser
 conf = ConfigParser()
 
 conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
-setup_cfg = dict(conf.items("metadata"))
+setup_cfg: T.Dict = dict(conf.items("metadata"))
 
 # -- General configuration ----------------------------------------------------
 
 # By default, highlight as Python 3.
-highlight_language = "python3"
+highlight_language: str = "python3"
 
 # If your documentation needs a minimal Sphinx version, state it here.
 # needs_sphinx = '1.2'
@@ -70,6 +74,56 @@ exclude_patterns.append("_templates")
 rst_epilog += """
 """
 
+# Whether to create cross-references for the parameter types in the
+# Parameters, Other Parameters, Returns and Yields sections of the docstring.
+numpydoc_xref_param_type = True
+
+# Words not to cross-reference. Most likely, these are common words used in
+# parameter type descriptions that may be confused for classes of the same
+# name.
+numpydoc_xref_ignore = {
+    "type",
+    "optional",
+    "default",
+    "or",
+    "of",
+    "method",
+    "instance",
+    "subclass",
+    "class",
+    "object",
+    "keyword-only",
+    "function",
+    "default",
+    "thereof",
+}
+
+# Mappings to fully qualified paths (or correct ReST references) for the
+# aliases/shortcuts used when specifying the types of parameters.
+# Numpy provides some defaults
+# https://github.com/numpy/numpydoc/blob/b352cd7635f2ea7748722f410a31f937d92545cc/numpydoc/xref.py#L62-L94
+# so we only need to define Astropy-specific x-refs
+numpydoc_xref_aliases = {
+    # super general
+    "-like": ":term:`-like`",
+    # python
+    "file-like": ":term:`python:file-like object`",
+    "file": ":term:`python:file object`",
+    "iterator": ":term:`python:iterator`",
+    "path-like": ":term:`python:path-like object`",
+    "module": ":term:`python:module`",
+    "number": ":term:`number`",
+    # for astropy
+    "unit-like": ":term:`unit-like`",
+    "quantity-like": ":term:`quantity-like`",
+    "angle-like": ":term:`angle-like`",
+    "length-like": ":term:`angle-like`",
+    "table-like": ":term:`table-like`",
+    "time-like": ":term:`time-like`",
+    "frame-like": ":term:`frame-like`",
+    "coord-like": ":term:`coord-like`",
+}
+
 # extensions
 extensions += [
     "sphinx.ext.todo",
@@ -85,10 +139,11 @@ todo_include_todos = True
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
-project = setup_cfg["name"]
+project: str = setup_cfg["name"]
 author = setup_cfg["author"]
 copyright = "{0}, {1}".format(
-    datetime.datetime.now().year, setup_cfg["author"]
+    datetime.datetime.now().year,
+    setup_cfg["author"],
 )
 
 # The version info for the project you're documenting, acts as replacement for
@@ -96,12 +151,12 @@ copyright = "{0}, {1}".format(
 # built documents.
 
 import_module(setup_cfg["name"])
-package = sys.modules[setup_cfg["name"]]
+package = sys.modules[setup_cfg["name"]]  # type: ignore[no-redef]
 
 # The short X.Y version.
-version = package.__version__.split("-", 1)[0]
+version = package.__version__.split("-", 1)[0]  # type:ignore
 # The full version, including alpha/beta/rc tags.
-release = package.__version__
+release = package.__version__  # type:ignore
 
 
 # -- Options for HTML output --------------------------------------------------
@@ -160,7 +215,7 @@ htmlhelp_basename = project + "doc"
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", project + ".tex", project + u" Documentation", author, "manual")
+    ("index", project + ".tex", project + u" Documentation", author, "manual"),
 ]
 
 
@@ -169,25 +224,29 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ("index", project.lower(), project + u" Documentation", [author], 1)
+    ("index", project.lower(), project + u" Documentation", [author], 1),
 ]
 
 
 # -- Options for the edit_on_github extension ---------------------------------
 
-if setup_cfg.get("edit_on_github").lower() == "true":
+edit_on_github: T.Optional[str] = setup_cfg.get("edit_on_github")
 
-    extensions += ["sphinx_astropy.ext.edit_on_github"]
+if isinstance(edit_on_github, str):
 
-    edit_on_github_project = setup_cfg["github_project"]
-    edit_on_github_branch = "master"
+    if edit_on_github.lower() == "true":
 
-    edit_on_github_source_root = ""
-    edit_on_github_doc_root = "docs"
+        extensions += ["sphinx_astropy.ext.edit_on_github"]
+
+        edit_on_github_project = setup_cfg["github_project"]
+        edit_on_github_branch = "master"
+
+        edit_on_github_source_root = ""
+        edit_on_github_doc_root = "docs"
 
 # -- Resolving issue number to links in changelog -----------------------------
 github_issues_url = "https://github.com/{0}/issues/".format(
-    setup_cfg["github_project"]
+    setup_cfg["github_project"],
 )
 
 

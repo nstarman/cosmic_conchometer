@@ -10,10 +10,15 @@ __email__ = "n[dot]starkman[at]mail.utoronto.ca"
 
 __all__ = [
     # modules
+    "common",
+    "data",
+    "diffusion_distortion",
     "utils",
-    # functions
+    # objects
+    "conf",
+    # etc.
+    "DATA_DIR",
 ]
-
 
 ##############################################################################
 # IMPORTS
@@ -21,13 +26,15 @@ __all__ = [
 # ---------------------------------------------------------
 # Packages may add whatever they like to this file, but
 # should keep this content at the top.
-from ._astropy_init import *  # noqa: F401  # isort:skip
+from ._astropy_init import *  # noqa: F401, F403  # isort:skip
 
 # ---------------------------------------------------------
 
 # PROJECT-SPECIFIC
-from . import utils
-from .common import *  # noqa
+from . import common, data, diffusion_distortion, utils
+from .common import *  # noqa: F401, F403
+from .config import conf
+from .setup_package import DATA_DIR
 
 # ALL
 __all__ += common.__all__
