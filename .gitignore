@@ -112,3 +112,6 @@ pip-wheel-metadata/
 /.Rproj.user
 /.Rhistory
 /.RData
+/cosmic_conchometer/data/scriptC_gamma
+/cosmic_conchometer/data/scriptC_nogam
+/scripts
