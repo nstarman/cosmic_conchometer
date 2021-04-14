@@ -19,10 +19,12 @@ import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
 from classy import Class
-from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
+
+# from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+
 
 ##############################################################################
 # PARAMETERS
@@ -45,15 +47,10 @@ class IntrinsicDistortionBase(CosmologyDependent):
 
     Parameters
     ----------
-    cosmo : `~astropy.cosmology.core.Cosmology` instance
+    cosmo : `~astropy.cosmology.core.Cosmology`
     class_cosmo : :class:`classy.Class`
     AkFunc: Callable or str or None (optional, keyword-only)
         The function to calculate :math:`A(\vec{k})`
-
-    Other Parameters
-    ----------------
-    integration_method : callable
-        The function to perform integrals.
 
     """
 
@@ -76,18 +73,19 @@ class IntrinsicDistortionBase(CosmologyDependent):
         else:
             raise TypeError("AkFunc must be <None, str, callable>.")
 
-        # calculated quantities
-        # TODO methods to set zeta array?
-        thermo = class_cosmo.get_thermodynamics()
-        self._zeta_arr = self.zeta(thermo["z"])
-        self._PgamBar_arr = thermo["exp(-kappa)"]
-        self._GgamBar_arr = thermo["g [Mpc^-1]"]
+        # # calculated quantities
+        # # TODO methods to set zeta array?
+        # thermo = class_cosmo.get_thermodynamics()
+        # self._zeta_arr = self.zeta(thermo["z"])
+        # self._PgamBar_arr = thermo["exp(-kappa)"]
+        # self._GgamBar_arr = thermo["g [Mpc^-1]"]
 
-        # FIXME! units
-        self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
-        self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
-
-        self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
+    #
+    # # FIXME! units
+    # self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
+    # self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
+    #
+    # self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
 
     # /def
 

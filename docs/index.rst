@@ -69,9 +69,9 @@ Project details
 
    credits
    whatsnew/index
+   glossary
    documentation/code_quality
    papers_and_presentations/README
-
 
 
 ..

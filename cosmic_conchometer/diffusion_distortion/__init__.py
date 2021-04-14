@@ -13,7 +13,7 @@ __all__ = [
 # IMPORTS
 
 # PROJECT-SPECIFIC
-from ._spectral_distortion import SpectralDistortion
+from .spectral import SpectralDistortion
 
 ##############################################################################
 # END

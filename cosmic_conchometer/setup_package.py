@@ -10,6 +10,7 @@ from __future__ import absolute_import
 
 # BUILT-IN
 import pathlib
+import typing as T
 
 __all__ = [
     "DATA_DIR",
@@ -34,6 +35,36 @@ except ImportError:
 else:
     HAS_TQDM = True
 
+
+class _NoOpPBar(object):
+    """This class implements the progress bar interface but does nothing.
+
+    This class is from :mod:`~emcee`.
+
+    """
+
+    def __init__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+        pass
+
+    # /def
+
+    def __enter__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+        return self
+
+    # /def
+
+    def __exit__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+        pass
+
+    # /def
+
+    def update(self, count: T.Any) -> T.Any:
+        pass
+
+    # /def
+
+
+# /class
 
 ##############################################################################
 # END

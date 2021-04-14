@@ -12,7 +12,7 @@ Reference/API
 .. automodapi:: cosmic_conchometer.diffusion_distortion
 	:include-all-objects:
     :inherited-members:
-	
-.. automodapi:: cosmic_conchometer.diffusion_distortion.scripts._scriptC
+
+.. automodapi:: cosmic_conchometer.diffusion_distortion.scripts.spectral
 	:include-all-objects:
 	:inherited-members:

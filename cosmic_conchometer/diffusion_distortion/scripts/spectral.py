@@ -23,6 +23,7 @@ __all__ = [
 
 # BUILT-IN
 import argparse
+import itertools
 import pathlib
 import typing as T
 import warnings
@@ -34,16 +35,16 @@ from scipy.special import spherical_jn as besselJ
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.data import DATA_DIR
-from cosmic_conchometer.setup_package import HAS_TQDM
+from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
 
 if HAS_TQDM:
     # THIRD PARTY
-    import tqdm
+    from tqdm import tqdm
 
 ##############################################################################
 # PARAMETERS
 
-sqrtpi = sqrt(pi)
+sqrtpi = mpf(sqrt(pi))
 
 # General
 _PLOT: bool = True  # Whether to plot the output
@@ -56,7 +57,7 @@ _BDSTEP: float = 1.0
 
 _BIGMMAX: int = 100
 _LITTLEMMAX: int = 30
-_LMAX: int = 10  # 9 + 1
+_LMAX: int = 50  # 49 + 1
 
 ##############################################################################
 # CODE
@@ -67,9 +68,7 @@ _LMAX: int = 10  # 9 + 1
 def scriptCnogam_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     r"""Eqn 109 of https://www.overleaf.com/project/5efe491b4140390001b1c892.
 
-    .. todo::  Rename m vs M. too confusing
-
-    .. todo::
+    .. math::
 
         (l+1)^M (\beta\Delta)^m {\cal C}(\beta\Delta,0,M,m;l) =
         \frac{1}{(\beta\Delta)} \left[
@@ -111,7 +110,7 @@ def scriptCnogam_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     t2: mpc = (
         sqrtpi
         * (M - (2 * m ** 2 + 6 * m + 5))
-        / (4 * (M + m + 1) * gamma(m + 2.5))
+        / (4 * (M + m + 1) * gamma(m + 2.5) * power(2, m))
     )
     t3: mpc = power(rhoES, m + 1) * hyp1f2(
         (M + m + 1) / 2,
@@ -206,6 +205,8 @@ def make_parser(
     Mmax: int = _BIGMMAX,
     mmax: int = _LITTLEMMAX,
     lmax: int = _LMAX,
+    # gamma type
+    gamma: str = "both",
     # general
     data_dir: str = DATA_DIR,
     # plot: bool = _PLOT,
@@ -261,6 +262,10 @@ def make_parser(
     parser.add_argument("--mmax", action="store", default=mmax, type=int)
     parser.add_argument("--lmax", action="store", default=lmax, type=int)
 
+    parser.add_argument(
+        "--gamma", choices=["gamma", "nogam", "both"], type=str, default="both"
+    )
+
     # where to save stuff
     parser.add_argument(
         "--data_dir",
@@ -277,6 +282,25 @@ def make_parser(
         type=bool,
     )
 
+    # ------------------
+
+    # Schwimmbad multiprocessing
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--ncores",
+        dest="n_cores",
+        default=1,
+        type=int,
+        help="Number of processes (uses multiprocessing).",
+    )
+    group.add_argument(
+        "--mpi",
+        dest="mpi",
+        default=False,
+        action="store_true",
+        help="Run with MPI.",
+    )
+
     return parser
 
 
@@ -286,11 +310,86 @@ def make_parser(
 # ------------------------------------------------------------------------
 
 
+class Worker:
+    """Worker."""
+
+    def __init__(self, opts: T.Mapping) -> None:
+        # this defines the cube for all terms in the sums to perform the diffusion
+        # distortion integral.
+        L, m, M = np.mgrid[0 : opts.lmax, 0 : opts.mmax, 0 : opts.Mmax]
+        # TODO! rename m vs M. too confusing
+
+        self.L = L
+        self.m = m
+        self.M = M
+        self.verbose = opts.verbose
+        drct = pathlib.Path(opts.data_dir)
+
+        # No-Gamma functions.
+        nogam_folder = "scriptC_nogam"
+        nogam_drct = drct.joinpath(nogam_folder)
+        nogam_drct.mkdir(exist_ok=True)
+        self.nogam_drct = nogam_drct
+
+        # Gamma functions.
+        gamma_folder = "scriptC_gamma"
+        gamma_drct = drct.joinpath(gamma_folder)
+        gamma_drct.mkdir(exist_ok=True)
+        self.gamma_drct = gamma_drct
+
+    # /def
+
+    def compute_and_save(self, bD: mpf, gamma: str) -> mpc:
+        """Compute and save.
+
+        Parameters
+        ----------
+        bD : float
+        gamma : bool
+            Whether to calculate the gamma or no-gamma versions.
+
+        Returns
+        -------
+        C : mpc
+
+        """
+        L, m, M = self.L, self.m, self.M
+        bDstr = str(bD).replace(".", "_")
+
+        # compute C
+        if gamma:
+            C = scriptCgamma_component(mpf(bD), M=M, m=m, rhoES=L)
+            # save result
+            np.save(self.gamma_drct.joinpath("scriptCgamma_comp-" + bDstr), C)
+
+        else:
+            C = scriptCnogam_component(mpf(bD), M=M, m=m, rhoES=L)
+            # save result
+            np.save(self.nogam_drct.joinpath("scriptCnogam_comp-" + bDstr), C)
+
+        return C
+
+    # /def
+
+    def __call__(self, task: T.Tuple[mpf, str]) -> mpc:
+        bD, gamma = task
+        return self.compute_and_save(bD, gamma)
+
+    # /def
+
+
+# /class
+
+# ------------------------------------------------------------------------
+
+
 def main(
     args: T.Union[list, str, None] = None,
     opts: T.Optional[argparse.Namespace] = None,
 ) -> None:
     """Script Function.
+
+    .. todo::
 
     Parameters
     ----------
@@ -302,6 +401,8 @@ def main(
         if not None, used ONLY if args is None
 
     """
+    import schwimmbad
+
     p: argparse.Namespace
     if opts is not None and args is None:
         p = opts
@@ -322,42 +423,25 @@ def main(
     # TODO! does this need to be mpf or mp.matrix?
     betaDeltas = np.arange(p.BDmin, p.BDmax, p.BDstep)
 
-    # this defines the cube for all terms in the sums to perform the diffusion
-    # distortion integral.
-    lgrid, mgrid, Mgrid = np.mgrid[0 : p.lmax, 0 : p.mmax, 0 : p.Mmax]
-    # TODO! rename m vs M. too confusing
-
-    if HAS_TQDM and p.verbose:
-        betaDeltas_iter = tqdm.tqdm(betaDeltas)
+    if p.gamma != "both":
+        iterator = ((bD, p.gamma) for bD in betaDeltas)
+        leniter = len(betaDeltas)
     else:
-        betaDeltas_iter = betaDeltas
+        iterator = ((bD, g) for bD in betaDeltas for g in (False, True))
+        leniter = 2 * len(betaDeltas)
+        
+    t = (
+        tqdm(total=leniter)
+        if (p.verbose and HAS_TQDM)
+        else _NoOpPBar()
+    )
 
-    # ---------
-    # no-gamma
+    worker = Worker(p)
+    pool = schwimmbad.choose_pool(mpi=p.mpi, processes=p.n_cores)
+    for r in pool.map(worker, iterator):
+        t.update(1)
 
-    dirnogam = pathlib.Path(p.data_dir).joinpath("scriptC_nogam")
-    dirnogam.mkdir(exist_ok=True)
-
-    bD: float
-    for bD in betaDeltas_iter:
-        bDstr = str(bD).replace(".", "_")
-
-        gridCnogam = scriptCnogam_component(bD, M=Mgrid, m=mgrid, rhoES=lgrid)
-        np.save(dirnogam.joinpath("scriptCnogam_comp-" + bDstr), gridCnogam)
-
-    # ---------
-    # gamma
-
-    dirgamma = pathlib.Path(p.data_dir).joinpath("scriptC_gamma")
-    dirgamma.mkdir(exist_ok=True)
-
-    for bD in betaDeltas_iter:
-        bDstr = str(bD).replace(".", "_")
-
-        gridCgamma = scriptCgamma_component(bD, M=Mgrid, m=mgrid, rhoES=lgrid)
-        np.save(dirgamma.joinpath("scriptCgamma_comp-" + bDstr), gridCgamma)
-
-    # /for
+    pool.close()
 
 
 # /def
