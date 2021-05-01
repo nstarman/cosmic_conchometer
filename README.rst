@@ -9,7 +9,7 @@ Cosmic Conchometer
 Documentation
 -------------
 
-|Documentation Status| 
+|Documentation Status|
 
 The documentation for ``cosmic_conchometer`` is hosted on `Read the docs <https://readthedocs.org/projects/cosmic_conchometer/badge/?version=latest>`_.
 

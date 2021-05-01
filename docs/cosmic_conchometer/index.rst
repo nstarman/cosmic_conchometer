@@ -1,8 +1,10 @@
-.. cosmic_conchometer-module-index
+.. cosmic_conchometer-module-index:
 
-******************************
-`cosmic_conchometer` on import
-******************************
+**********************
+``cosmic_conchometer``
+**********************
+
+.. currentmodule:: cosmic_conchometer
 
 This is the documentation for the import-level namespace of cosmic_conchometer.
 
@@ -10,7 +12,13 @@ This is the documentation for the import-level namespace of cosmic_conchometer.
 Reference/API
 =============
 
-.. automodapi:: cosmic_conchometer
+.. TODO get automodapi working!
+
+.. automodule:: cosmic_conchometer
+    :members:
+    :show-inheritance:
+
+.. automodsumm:: cosmic_conchometer
 
 
 Subpackages
@@ -19,4 +27,5 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
-   data/index
+   data
+   diffusion_distortion

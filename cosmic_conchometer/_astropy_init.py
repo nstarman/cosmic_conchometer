@@ -10,26 +10,32 @@ __all__ = ["__version__"]
 ##############################################################################
 
 # this indicates whether or not we are in the package's setup.py
+_ASTROPY_SETUP_: bool
 try:
     _ASTROPY_SETUP_
 except NameError:
+    # BUILT-IN
     import builtins
 
-    builtins._ASTROPY_SETUP_ = False
+    builtins._ASTROPY_SETUP_ = False  # type: ignore
 
 try:
+    # PROJECT-SPECIFIC
     from .version import version as __version__
 except ImportError:
     __version__ = ""
 
 
-if not _ASTROPY_SETUP_:  # noqa
+if not _ASTROPY_SETUP_:  # noqa: F403
+    # BUILT-IN
     import os
     from warnings import warn
+
+    # THIRD PARTY
     from astropy.config.configuration import (
-        update_default_config,
         ConfigurationDefaultMissingError,
         ConfigurationDefaultMissingWarning,
+        update_default_config,
     )
 
     # Create the test function for self test
@@ -47,13 +53,18 @@ if not _ASTROPY_SETUP_:  # noqa
         config_template = os.path.join(config_dir, __package__ + ".cfg")
         if os.path.isfile(config_template):
             try:
-                update_default_config(__package__, config_dir, version=__version__)
+                update_default_config(
+                    __package__,
+                    config_dir,
+                    version=__version__,
+                )
             except TypeError as orig_error:
                 try:
                     update_default_config(__package__, config_dir)
                 except ConfigurationDefaultMissingError as e:
                     wmsg = (
-                        e.args[0] + " Cannot install default profile. If you are "
+                        e.args[0]
+                        + " Cannot install default profile. If you are "
                         "importing from source, this is expected."
                     )
                     warn(ConfigurationDefaultMissingWarning(wmsg))
