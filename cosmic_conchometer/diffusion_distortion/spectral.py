@@ -20,7 +20,7 @@ from mpmath import mp
 
 # PROJECT-SPECIFIC
 from .core import ArrayLike_Callable, IntrinsicDistortionBase
-from .scripts.spectral import scriptCnogam_component, scriptCgamma_component
+from .scripts.spectral import scriptCgamma_component, scriptCnogam_component
 
 ##############################################################################
 # PARAMETERS
@@ -124,7 +124,8 @@ class SpectralDistortion(IntrinsicDistortionBase):
         upper = scriptCnogam_component(betaDelta, M, m, L + 1)
         lower = scriptCnogam_component(betaDelta, M, m, L)
 
-        return upper - mp.power(L / (L + 1), M) * lower
+        C: float = upper - mp.power(L / (L + 1), M) * lower
+        return C
 
     # /def
 
@@ -134,7 +135,8 @@ class SpectralDistortion(IntrinsicDistortionBase):
         upper = scriptCgamma_component(betaDelta, M, m, L + 1)
         lower = scriptCgamma_component(betaDelta, M, m, L)
 
-        return upper - mp.power(L / (L + 1), M) * lower
+        C: float = upper - mp.power(L / (L + 1), M) * lower
+        return C
 
     # /def
 

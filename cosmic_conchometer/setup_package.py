@@ -43,7 +43,7 @@ class _NoOpPBar(object):
 
     """
 
-    def __init__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+    def __init__(self, *args: T.Any, **kwargs: T.Any) -> None:
         pass
 
     # /def

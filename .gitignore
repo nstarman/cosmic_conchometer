@@ -4,9 +4,6 @@
 ###############################################################################
 # Project-Specific
 
-# large data files
-*/data/*.npy
-
 # scratch folder
 scratch/
 **/_old

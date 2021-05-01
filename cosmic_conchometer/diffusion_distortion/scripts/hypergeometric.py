@@ -13,8 +13,8 @@ __all__ = [
     "make_parser",
     "main",
     # functions
-    "scriptCnogam_component",
-    "scriptCgamma_component",
+    "hypergeometric_1f2",
+    "hypergeometric_2f2",
 ]
 
 
@@ -23,13 +23,15 @@ __all__ = [
 
 # BUILT-IN
 import argparse
+import itertools
 import pathlib
 import typing as T
 import warnings
 
 # THIRD PARTY
 import numpy as np
-from mpmath import expj, gamma, hyp1f2, hyp2f2, mpc, mpf, pi, power, sqrt
+import schwimmbad
+from mpmath import hyp1f2, hyp2f2, mpc, mpf
 from scipy.special import spherical_jn as besselJ
 
 # PROJECT-SPECIFIC
@@ -43,10 +45,7 @@ if HAS_TQDM:
 ##############################################################################
 # PARAMETERS
 
-sqrtpi = mpf(sqrt(pi))
-
 # General
-_PLOT: bool = True  # Whether to plot the output
 _VERBOSE: bool = True  # Degree of logfile verbosity
 
 # Specific
@@ -64,24 +63,8 @@ _LMAX: int = 50  # 49 + 1
 
 
 @np.vectorize
-def scriptCnogam_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
-    r"""Eqn 109 of https://www.overleaf.com/project/5efe491b4140390001b1c892.
-
-    .. math::
-
-        (l+1)^M (\beta\Delta)^m {\cal C}(\beta\Delta,0,M,m;l) =
-        \frac{1}{(\beta\Delta)} \left[
-            \tilde{\rho}_{ES}^{M} ~ j_{m+1}(\beta\Delta \tilde{\rho}_{ES})
-        \right]
-        -
-        \frac{\sqrt{\pi}\left(M-(2m^2+6m+5)\right)}
-             {4(M+m+1)\Gamma\left(\frac{2m+5}{2}\right)}
-        \left(\frac{\beta\Delta}{2}\right)^{-M-1}
-        \Bigg[
-            \left(\frac{l\beta\Delta}{2}\right)^{M+m+1}  \,
-            {_1F_2}\left( \frac{M+m+1}{2};\frac{2m+5}{2},\frac{M+m+3}{2};
-                          -\left(\frac{l \beta\Delta}{2}\right)^2        \right)
-        \Bigg]
+def hypergeometric_1f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
+    r"""Hypergeometric 1f2
 
     Parameters
     ----------
@@ -103,50 +86,19 @@ def scriptCnogam_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     `~mpmath.mpc`
 
     """
-    x: mpf = betaDelta * rhoES
-
-    t1: mpc = besselJ(m + 1, np.float64(x)) / power(betaDelta, m + 1)
-    t2: mpc = (
-        sqrtpi
-        * (M - (2 * m ** 2 + 6 * m + 5))
-        / ((M + m + 1) * gamma(m + 2.5) * power(2, m+2))
-    )
-    t3: mpc = power(rhoES, m + 1) * hyp1f2(
+    return hyp1f2(
         (M + m + 1) / 2,
         m + 2.5,
         (M + m + 3) / 2,
-        -((x / 2) ** 2),
+        -((betaDelta * rhoES / 2) ** 2),
     )
-
-    c: mpc = t1 - t2 * t3
-    return c
-
 
 # /def
 
 
 @np.vectorize
-def scriptCgamma_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
-    r"""Eqn 115 of https://www.overleaf.com/project/5efe491b4140390001b1c892
-
-    .. math::
-
-        l^M (\beta\Delta)^m \mathcal{C}_{component}(\beta\Delta,\beta\Delta,M,m;l) =
-        \frac{1}{\beta\Delta} \Bigg[
-            l^M \Exp{i\beta\Delta l}
-            j_{m+1}(\beta\Delta  l)\
-        \Bigg]
-        - \frac{\sqrt{\pi} l^{M+1}(\beta\Delta  l)^m}
-               {2^{m+2}
-           \Gamma \left(\frac{2m\!+\!5}{2}\right)}
-        \Bigg[
-            \frac{i\beta\Delta  l}{(M\!+\!m\!+\!2)} \,
-            {_2F_2}(m\!+\!2,m\!+\!M\!+\!2;2m\!+\!4,m\!+\!M\!+\!3;
-                    2i \beta\Delta  l)
-            - \frac{2m^2\!+\!6m\!-\!M\!+\!5}{(M\!+\!m\!+\!1)} \,
-            {_2F_2}(m\!+\!2,m\!+\!M\!+\!1;2m\!+\!4,m\!+\!M\!+\!2;
-                    2i \beta\Delta  l)
-        \Bigg]
+def hypergeometric_2f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
+    r"""Hypergeometric 2f2
 
     Parameters
     ----------
@@ -168,24 +120,7 @@ def scriptCgamma_component(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     `~mpmath.mpc`
 
     """
-    x: mpf = betaDelta * rhoES
-
-    t1: mpc = expj(x) * besselJ(m + 1, np.float64(x)) / power(betaDelta, m + 1)
-    t2: mpc = sqrtpi / power(2, m + 2) * power(rhoES, m + 1) / gamma(m + 2.5)
-    t3: mpc = (
-        (1j * x)
-        / (M + m + 2)
-        * hyp2f2(m + 2, m + M + 2, 2 * m + 4, m + M + 3, 2j * x)
-    )
-    # (2m^2+6m-M+5) / (M+m+1) * hyp2f2(m+2, m+M+1, 2m+4, m+M+2, 2i x)
-    t4: mpc = (
-        (2 * m ** 2 + 6 * m - M + 5)
-        / (M + m + 1)
-        * hyp2f2(m + 2, M + m + 1, 2 * m + 4, m + M + 2, 2j * x)
-    )
-
-    c: mpc = t1 - t2 * (t3 - t4)
-    return c
+    return hyp2f2(m + 2, M + m + 1, 2 * m + 4, m + M + 2, 2j * betaDelta * rhoES)
 
 
 # /def
@@ -312,7 +247,7 @@ def make_parser(
 class Worker:
     """Worker."""
 
-    def __init__(self, opts: object) -> None:
+    def __init__(self, opts: T.Mapping) -> None:
         # this defines the cube for all terms in the sums to perform the diffusion
         # distortion integral.
         L, m, M = np.mgrid[0 : opts.lmax, 0 : opts.mmax, 0 : opts.Mmax]
@@ -326,13 +261,13 @@ class Worker:
         drct.mkdir(exist_ok=True)
 
         # No-Gamma functions.
-        nogam_folder = "scriptC_nogam"
+        nogam_folder = "hyp1f2"
         nogam_drct = drct.joinpath(nogam_folder)
         nogam_drct.mkdir(exist_ok=True)
         self.nogam_drct = nogam_drct
 
         # Gamma functions.
-        gamma_folder = "scriptC_gamma"
+        gamma_folder = "hyp2f2"
         gamma_drct = drct.joinpath(gamma_folder)
         gamma_drct.mkdir(exist_ok=True)
         self.gamma_drct = gamma_drct
@@ -358,14 +293,14 @@ class Worker:
 
         # compute C
         if gamma:
-            C = scriptCgamma_component(mpf(bD), M=M, m=m, rhoES=L)
+            C = hypergeometric_2f2(mpf(bD), M=M, m=m, rhoES=L)
             # save result
-            np.save(self.gamma_drct.joinpath("scriptCgamma_comp-" + bDstr), C)
+            np.save(self.gamma_drct.joinpath("hyp2f2-" + bDstr), C)
 
         else:
-            C = scriptCnogam_component(mpf(bD), M=M, m=m, rhoES=L)
+            C = hypergeometric_1f2(mpf(bD), M=M, m=m, rhoES=L)
             # save result
-            np.save(self.nogam_drct.joinpath("scriptCnogam_comp-" + bDstr), C)
+            np.save(self.nogam_drct.joinpath("hyp1f2-" + bDstr), C)
 
         return C
 
@@ -399,8 +334,6 @@ def main(
         if not None, used ONLY if args is None
 
     """
-    import schwimmbad
-
     p: argparse.Namespace
     if opts is not None and args is None:
         p = opts
@@ -418,16 +351,15 @@ def main(
     # make the range of $\beta \Delta$ values over which to evaluate.
     # this is the independent and continuous variable and the result will
     # need to be interpolated as a function of $\beta \Delta$.
-    # TODO! does this need to be mpf or mp.matrix?
     betaDeltas = np.arange(p.BDmin, p.BDmax, p.BDstep)
 
-    if p.gamma != "both":
-        iterator = ((bD, p.gamma) for bD in betaDeltas)
-        leniter = len(betaDeltas)
-    else:
+    if p.gamma == "both":
         iterator = ((bD, g) for bD in betaDeltas for g in (False, True))
         leniter = 2 * len(betaDeltas)
-        
+    else:
+        iterator = ((bD, p.gamma) for bD in betaDeltas)
+        leniter = len(betaDeltas)
+
     t = (
         tqdm(total=leniter)
         if (p.verbose and HAS_TQDM)
