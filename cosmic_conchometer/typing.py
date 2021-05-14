@@ -34,9 +34,9 @@ NUMPY_VERSION = tuple([int(x) for x in np.version.version.split(".")])
 #
 # else:
 #     ArrayLike = T.Union[float, list, tuple, np.ndarray]
-ArrayLike = T.Union[float, np.ndarray]
+ArrayLike = T.Union[float, np.float, np.complex, np.ndarray]
 
-TArrayLike = T.TypeVar("TArrayLike", float, np.ndarray)
+TArrayLike = T.TypeVar("TArrayLike", float, np.float, np.complex, np.ndarray)
 
 
 ArrayLike_Callable = T.Callable[

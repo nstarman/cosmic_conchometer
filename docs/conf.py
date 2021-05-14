@@ -51,7 +51,7 @@ from configparser import ConfigParser
 conf = ConfigParser()
 
 conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
-setup_cfg: T.Dict = dict(conf.items("metadata"))
+setup_cfg: dict = dict(conf.items("metadata"))
 
 # -- General configuration ----------------------------------------------------
 

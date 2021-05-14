@@ -24,17 +24,10 @@ verbose : bool (default={verbose})
 
 """
 
-__all__ = [
-    "make_parser",
-    "main",
-    # functions
-    "Cnogam_from_1F2",
-    "Cgamma_from_2F2",
-]
-
-
 ##############################################################################
 # IMPORTS
+
+from __future__ import annotations
 
 # BUILT-IN
 import argparse
@@ -42,6 +35,7 @@ import itertools
 import pathlib
 import typing as T
 import warnings
+from collections.abc import Generator, Sequence
 
 # THIRD PARTY
 import numpy as np
@@ -60,6 +54,15 @@ from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
 if HAS_TQDM:
     # THIRD PARTY
     from tqdm import tqdm
+
+
+__all__ = [
+    "make_parser",
+    "main",
+    # functions
+    "Cnogam_from_1F2",
+    "Cgamma_from_2F2",
+]
 
 ##############################################################################
 # PARAMETERS
@@ -177,7 +180,7 @@ def Cgamma_from_2F2(F: np.ndarray, bd: float) -> np.ndarray:
 
 def _from_numpy_dir(
     path: pathlib.Path,
-) -> T.Tuple[T.Sequence, T.Generator, tuple]:
+) -> tuple[Sequence[float], Generator, tuple]:
     fs = tuple(path.glob("*.npy"))
     """Load from numpy directory."""
     bDs = [float(f.stem.split("-")[-1].replace("_", ".")) for f in fs]
@@ -194,7 +197,7 @@ def _from_numpy_dir(
 
 def _from_zarr_dir(
     path: pathlib.Path,
-) -> T.Tuple[T.Sequence, T.Generator, tuple]:
+) -> tuple[Sequence[float], Generator, tuple]:
     """Load from zarr directory."""
     rFs = zarr.open(str(path), mode="r")
     bDs = tuple(rFs.attrs["betaDelta"])
@@ -284,7 +287,7 @@ def make_parser(
 class Worker:
     """Worker."""
 
-    def __init__(self, kind: str, shape: tuple, bDs: T.Sequence) -> None:
+    def __init__(self, kind: str, shape: tuple, bDs: Sequence) -> None:
 
         if kind in ("Cnogam", "both"):
             self.Cnogam_drct = DATA_DIR / "scriptC_nogam.zarr"
@@ -312,7 +315,7 @@ class Worker:
 
     def __call__(
         self,
-        task: T.Tuple[str, T.Callable, np.float128],
+        task: tuple[str, T.Callable, np.float128],
     ) -> np.complex128:
         kind, F, bD = task
 

@@ -2,16 +2,10 @@
 
 """Core functions safe to be used in lower modules."""
 
-__all__ = [
-    # functions
-    "blackbody",
-    "default_Ak",
-    "CosmologyDependent",
-]
-
-
 ##############################################################################
 # IMPORTS
+
+from __future__ import annotations
 
 # BUILT-IN
 import typing as T
@@ -27,6 +21,13 @@ from astropy.utils.state import ScienceState
 # PROJECT-SPECIFIC
 from .config import conf
 from .typing import ArrayLike
+
+__all__ = [
+    # functions
+    "blackbody",
+    "default_Ak",
+    "CosmologyDependent",
+]
 
 ##############################################################################
 # PARAMETERS
@@ -46,6 +47,10 @@ _GHz3_hc2_2_erg_Hzssrcm2: float = (
     1 * u.GHz ** 3 * const.h / const.c ** 2 / u.sr
 ).to_value(_bb_unit)
 """h / c**2 times GHz^3 in erg / Hz s sr cm^2."""
+
+# -----------
+
+fAkType = T.Callable[[ArrayLike], complex]
 
 
 ##############################################################################
@@ -114,10 +119,10 @@ class default_Ak(ScienceState):
 
     _default_value: str = "unity"
     """Default value for A(k)"""
-    _value: T.Optional[T.Callable] = None
+    _value: T.Optional[fAkType] = None
     """Current value of A(k)"""
 
-    _registry: T.Dict[str, T.Callable] = {"unity": _Ak_unity}
+    _registry: dict[str, fAkType] = {"unity": _Ak_unity}
     """Registry of A(k) functions."""
 
     @classmethod

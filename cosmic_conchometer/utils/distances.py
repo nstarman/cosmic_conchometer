@@ -8,18 +8,10 @@
 
 """
 
-__all__ = [
-    "z_matter_radiation_equality",
-    "z_of",
-    "a_of",
-    "alpha_observer",
-    "alpha_of",
-    "rho_of",
-]
-
-
 ##############################################################################
 # IMPORTS
+
+from __future__ import annotations
 
 # BUILT-IN
 import typing as T
@@ -31,6 +23,15 @@ from astropy.cosmology.core import Cosmology
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.typing import TArrayLike
+
+__all__ = [
+    "z_matter_radiation_equality",
+    "z_of",
+    "a_of",
+    "alpha_observer",
+    "alpha_of",
+    "rho_of",
+]
 
 ##############################################################################
 # PARAMETERS
@@ -62,7 +63,7 @@ def z_matter_radiation_equality(
     *,
     full_output: bool = False,
     **rootkw: T.Any,
-) -> T.Union[u.Quantity, T.Tuple[u.Quantity, T.Tuple[T.Any, ...]]]:
+) -> T.Union[u.Quantity, tuple[u.Quantity, tuple[T.Any, ...]]]:
     """Calculate matter-radiation equality redshift for a given cosmology.
 
     This works for a cosmology with any number of components.
@@ -97,7 +98,7 @@ def z_matter_radiation_equality(
         diff: TZ = cosmo.Om(z) - cosmo.Ogamma(z)
         return diff
 
-    rest: T.Tuple[T.Any, ...]
+    rest: tuple[T.Any, ...]
     zeq, *rest = brentq(f, zmin, zmax, full_output=True, **rootkw)
     z_eq: u.Quantity = zeq << u.one
 

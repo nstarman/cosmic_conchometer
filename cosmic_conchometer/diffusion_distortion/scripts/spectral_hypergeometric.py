@@ -52,17 +52,10 @@ verbose : bool (default={verbose})
 
 """
 
-__all__ = [
-    "make_parser",
-    "main",
-    # functions
-    "hypergeometric_1f2",
-    "hypergeometric_2f2",
-]
-
-
 ##############################################################################
 # IMPORTS
+
+from __future__ import annotations
 
 # BUILT-IN
 import argparse
@@ -83,6 +76,14 @@ from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
 if HAS_TQDM:
     # THIRD PARTY
     from tqdm import tqdm
+
+__all__ = [
+    "make_parser",
+    "main",
+    # functions
+    "hypergeometric_1f2",
+    "hypergeometric_2f2",
+]
 
 ##############################################################################
 # PARAMETERS
@@ -354,7 +355,7 @@ class Worker:
 
     def __call__(
         self,
-        task: T.Union[T.Tuple[mpf, str], T.Tuple[mpf, str, T.Optional[type]]],
+        task: T.Union[tuple[mpf, str], tuple[mpf, str, T.Optional[type]]],
     ) -> T.Union[mpc, np.ndarray]:
         """Compute and save.
 
