@@ -16,23 +16,17 @@ import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
 from classy import Class
-from mpmath import mp
 
 # PROJECT-SPECIFIC
-from .core import ArrayLike_Callable, IntrinsicDistortionBase
-from .scripts.spectral import scriptCgamma_component, scriptCnogam_component
-
-##############################################################################
-# PARAMETERS
-
-IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
+from .core import DiffusionDistortionBase, IUSType
+from cosmic_conchometer.typing import ArrayLike, TArrayLike, ArrayLike_Callable
 
 ##############################################################################
 # CODE
 ##############################################################################
 
 
-class SpectralDistortion(IntrinsicDistortionBase):
+class SpectralDistortion(DiffusionDistortionBase):
     """Spectral Distortion.
 
     Parameters
@@ -58,6 +52,15 @@ class SpectralDistortion(IntrinsicDistortionBase):
             class_cosmo=class_cosmo,
             AkFunc=AkFunc,
         )
+
+        # Read in script-C cubes
+        raise NotImplementedError("TODO!")
+
+        self._betaDeltas
+        self._script_C_nogam
+        self._script_C_gamma
+
+        # interpolate them ?
 
     # /def
 
@@ -96,6 +99,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             Ak or return the whole complex factor (None, default)
 
         """
+        raise NotImplementedError("TODO!")
 
     #         reduced_energy = freq * const.h / (const.k_B * self.Tcmb0) << u.one
     #
@@ -118,29 +122,13 @@ class SpectralDistortion(IntrinsicDistortionBase):
 
     # ------------------------------------------------------------
 
-    @staticmethod
-    def scriptCnogam(betaDelta: float, M: int, m: int, L: int) -> float:
-        """Script C no-gamma."""
-        upper = scriptCnogam_component(betaDelta, M, m, L + 1)
-        lower = scriptCnogam_component(betaDelta, M, m, L)
+    def _l_sum(self) -> np.ndarray:  # TODO! descriptive name
+        raise NotImplementedError("TODO!")
 
-        C: float = upper - mp.power(L / (L + 1), M) * lower
-        return C
+    def _i_sum(self) -> np.ndarray:  # TODO! descriptive name
+        raise NotImplementedError("TODO!")
 
-    # /def
-
-    @staticmethod
-    def scriptCgamma(betaDelta: float, M: int, m: int, L: int) -> float:
-        """Script C no-gamma."""
-        upper = scriptCgamma_component(betaDelta, M, m, L + 1)
-        lower = scriptCgamma_component(betaDelta, M, m, L)
-
-        C: float = upper - mp.power(L / (L + 1), M) * lower
-        return C
-
-    # /def
-
-    # TODO! version that runs on the interpolated cube
+    # ...
 
     # ===============================================================
     # Convenience Methods
@@ -182,27 +170,7 @@ class SpectralDistortion(IntrinsicDistortionBase):
             Maximum index in summation.
 
         """
-        # # integrate scatter integrand (complex number)
-        # res, _ = self.scatter_integral(
-        #     k.to(1 / u.Mpc).value,  # ensure value copy
-        #     theta_kS.to(u.rad).value,  # ensure value copy
-        #     zeta_max=zeta_max,
-        #     m_max=m_max,
-        #     **integration_kwargs,
-        # )
-
-    #
-    # # prefactor
-    # r_prefact = self.prefactor(freq=freq, k=k, real_AK=True)
-    # i_prefact = self.prefactor(freq=freq, k=k, real_AK=False)
-    #
-    # # blackbody
-    # bb = self.blackbody(freq=freq, temp=self.Tcmb0)
-    #
-    # # correctly multiply the prefactor and integral
-    # return bb * (
-    #     r_prefact * np.real(res) + 1j * i_prefact * np.imaginary(res)
-    # )
+        raise NotImplementedError("TODO!")
 
     compute = __call__
     # /def

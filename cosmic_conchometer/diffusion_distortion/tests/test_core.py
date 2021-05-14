@@ -2,7 +2,7 @@
 
 """Initiation Tests for `~cosmic_conchometer`."""
 
-__all__ = ["test__ArrayLike_Callable", "Test_IntrinsicDistortionBase"]
+__all__ = ["test__ArrayLike_Callable", "Test_DiffusionDistortionBase"]
 
 
 ##############################################################################
@@ -48,10 +48,10 @@ def test__ArrayLike_Callable():
 # -------------------------------------------------------------------
 
 
-class Test_IntrinsicDistortionBase:
-    """Test `~cosmic_conchometer.diffusion_distortion.core.IntrinsicDistortionBase`."""
+class Test_DiffusionDistortionBase:
+    """Test `~cosmic_conchometer.diffusion_distortion.core.DiffusionDistortionBase`."""
 
-    _cls = diffusion_distortion.core.IntrinsicDistortionBase
+    _cls = diffusion_distortion.core.DiffusionDistortionBase
 
     @classmethod
     def setup_class(cls):

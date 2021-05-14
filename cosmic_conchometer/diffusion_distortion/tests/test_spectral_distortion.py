@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 # PROJECT-SPECIFIC
-from .test_core import Test_IntrinsicDistortionBase
+from .test_core import Test_DiffusionDistortionBase
 from cosmic_conchometer import diffusion_distortion
 
 ##############################################################################
@@ -51,7 +51,7 @@ def test__IUSType():
 # -------------------------------------------------------------------
 
 
-class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
+class Test_SpectralDistortion(Test_DiffusionDistortionBase):
     """Test `~cosmic_conchometer.diffusion_distortion.SpectralDistortion`."""
 
     _cls = diffusion_distortion.SpectralDistortion
@@ -61,7 +61,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
         # Most basic instantiation.
         self._cls(self.cosmo, self.class_cosmo)
 
-        # defer tests covered by tests of IntrinsicDistortionBase.
+        # defer tests covered by tests of DiffusionDistortionBase.
 
     # /def
 
@@ -71,7 +71,7 @@ class Test_SpectralDistortion(Test_IntrinsicDistortionBase):
         idb = self._cls(self.cosmo, self.class_cosmo)
 
         # test has attributes
-        # defer tests of IntrinsicDistortionBase variables for that test suite.
+        # defer tests of DiffusionDistortionBase variables for that test suite.
         for attr in (
             "PgamBarCL",
             "GgamBarCL",

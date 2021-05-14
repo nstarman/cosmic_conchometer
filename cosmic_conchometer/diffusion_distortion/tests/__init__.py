@@ -6,7 +6,7 @@
 __all__ = [
     "test__ArrayLike_Callable",
     "test__IUSType",
-    "Test_IntrinsicDistortionBase",
+    "Test_DiffusionDistortionBase",
 ]
 
 
@@ -14,7 +14,7 @@ __all__ = [
 # IMPORT
 
 # PROJECT-SPECIFIC
-from .test_core import Test_IntrinsicDistortionBase, test__ArrayLike_Callable
+from .test_core import Test_DiffusionDistortionBase, test__ArrayLike_Callable
 from .test_spectral_distortion import test__IUSType
 
 ##############################################################################

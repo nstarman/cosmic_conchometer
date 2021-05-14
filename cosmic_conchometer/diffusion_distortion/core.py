@@ -3,7 +3,7 @@
 """Intrinsic Distortion Core Functions."""
 
 __all__ = [
-    "IntrinsicDistortionBase",
+    "DiffusionDistortionBase",
 ]
 
 
@@ -22,19 +22,12 @@ from classy import Class
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
-
-# from scipy.interpolate import InterpolatedUnivariateSpline as IUS
-
+from cosmic_conchometer.typing import ArrayLike, TArrayLike, ArrayLike_Callable
 
 ##############################################################################
 # PARAMETERS
 
-IUSType = T.Callable[[T.Union[float, np.ndarray]], np.ndarray]
-
-ArrayLike_Callable = T.Callable[
-    [T.Union[float, np.ndarray]],
-    T.Union[float, np.ndarray],
-]
+IUSType = T.Callable[[ArrayLike], np.ndarray]
 
 
 ##############################################################################
@@ -42,7 +35,7 @@ ArrayLike_Callable = T.Callable[
 ##############################################################################
 
 
-class IntrinsicDistortionBase(CosmologyDependent):
+class DiffusionDistortionBase(CosmologyDependent):
     r"""Spectral Distortion.
 
     Parameters
@@ -62,7 +55,7 @@ class IntrinsicDistortionBase(CosmologyDependent):
         AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
     ) -> None:
         super().__init__(cosmo)
-        self.class_cosmo = class_cosmo  # TODO maybe move to superclass
+        self.class_cosmo = class_cosmo  # TODO? move to superclass
 
         self.AkFunc: ArrayLike_Callable
         if AkFunc is None:
@@ -80,12 +73,12 @@ class IntrinsicDistortionBase(CosmologyDependent):
         # self._PgamBar_arr = thermo["exp(-kappa)"]
         # self._GgamBar_arr = thermo["g [Mpc^-1]"]
 
-    #
-    # # FIXME! units
-    # self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
-    # self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
-    #
-    # self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
+        #
+        # # FIXME! units
+        # self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
+        # self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
+        #
+        # self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
 
     # /def
 

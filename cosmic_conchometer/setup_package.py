@@ -22,7 +22,7 @@ __all__ = [
 ##############################################################################
 # PARAMETERS
 
-DATA_DIR: str = str(pathlib.Path(__file__).parent.joinpath("data"))
+DATA_DIR: pathlib.Path = pathlib.Path(__file__).parent.joinpath("data")
 
 # -------------------------------------------------------------------
 

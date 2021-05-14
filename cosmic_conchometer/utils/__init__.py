@@ -21,7 +21,7 @@ __all__ = []
 # IMPORTS
 
 # PROJECT-SPECIFIC
-from . import misc
+from . import misc, distances
 from .misc import *  # noqa: F401, F403
 
 __all__ += misc.__all__

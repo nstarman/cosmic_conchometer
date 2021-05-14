@@ -1,11 +1,50 @@
 # -*- coding: utf-8 -*-
 
-"""**DOCSTRING**.
+"""Script to compute the hypergeometric cubes used in the spectral calculations.
 
 This script can be run from the command line with the following parameters:
 
+.. todo::
+
+    change saving to zarr format.
+
+    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp1f2data.zarr"), mode='w', shape=(200, 50, 30, 100),
+    #                chunks=(3, 50, 30, 100), dtype=np.float128)
+    # for i, bd in enumerate(tqdm.tqdm(bds)):
+    #     F = np.load(cosmic_conchometer.DATA_DIR / "hyp1f2" / f"hyp1f2-{bd}_0.npy", allow_pickle=True)
+    #     wFs[i, :, :, :] = F.astype(np.float128)
+    
+    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp2f2data.zarr"), mode='w', shape=(200, 50, 30, 100),
+    #                chunks=(3, 50, 30, 100), dtype=np.complex128)
+    # for i, bd in enumerate(tqdm.tqdm(bds)):
+    #     F = np.load(cosmic_conchometer.DATA_DIR / "hyp2f2" / f"hyp2f2-{bd}_0.npy", allow_pickle=True)
+    #     wFs[i, :, :, :] = F.astype(np.complex128)
+
 Parameters
 ----------
+BDmin : float (default = {BDmin})
+BDmax : float (default = {BDmax})
+BDstep : float (default = {BDstep})
+
+Mmax : int (default = {Mmax})
+mmax : int (default = {mmax})
+lmax : int (default = {lmax})
+
+kind : ("1F2", "2F2", "both") (default="both")
+    Whether to calculate the 1f2 or 2f2 hypergeometric function cubes or both.
+
+Other Parameters
+----------------
+ncores : int (default=1)
+    Number of processes (uses multiprocessing). Argument into :mod:`schwimmbad`.
+mpi : bool (default=False)
+    Run with MPI. Argument into :mod:`schwimmbad`.
+
+data_dir : str (default={data_dir})
+    The data directory in which the cubes are saved.
+
+verbose : bool (default={verbose})
+    Whether to show the progress bar.
 
 """
 
@@ -38,6 +77,7 @@ from scipy.special import spherical_jn as besselJ
 from cosmic_conchometer.data import DATA_DIR
 from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
 
+# OPTIONAL DEPENDENCIES
 if HAS_TQDM:
     # THIRD PARTY
     from tqdm import tqdm
@@ -57,14 +97,28 @@ _BIGMMAX: int = 100
 _LITTLEMMAX: int = 30
 _LMAX: int = 50  # 49 + 1
 
+# format documentation
+__doc__.format(
+    BDmin=_BDMIN,
+    BDmax=_BDMAX,
+    BDstep=_BDSTEP,
+    Mmax=_BIGMMAX,
+    mmax=_LITTLEMMAX,
+    lmax=_LMAX,
+    data_dir=DATA_DIR,
+    verbose=_VERBOSE,
+)
+
 ##############################################################################
 # CODE
 ##############################################################################
 
 
 @np.vectorize
-def hypergeometric_1f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
-    r"""Hypergeometric 1f2
+def hypergeometric_1f2(
+    betaDelta: mpf, M: int, m: int, rhoES: int, astype: T.Optional[type] = None
+) -> T.Union[mpf, np.float]:
+    r"""Hypergeometric 1f2 for the spectral distortion calculation.
 
     Parameters
     ----------
@@ -77,7 +131,7 @@ def hypergeometric_1f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     M, m : int
         arguments.
 
-        .. todo:: rename m vs M. too confusing
+        .. todo:: rename m vs M. too confusing.
 
     rhoES : int
 
@@ -86,18 +140,23 @@ def hypergeometric_1f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
     `~mpmath.mpc`
 
     """
-    return hyp1f2(
+    astype = astype or mpf
+    f = hyp1f2(
         (M + m + 1) / 2,
         m + 2.5,
         (M + m + 3) / 2,
         -((betaDelta * rhoES / 2) ** 2),
     )
+    return f.astype(astype)
+
 
 # /def
 
 
 @np.vectorize
-def hypergeometric_2f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
+def hypergeometric_2f2(
+    betaDelta: mpf, M: int, m: int, rhoES: int, astype: T.Optional[type] = None
+) -> T.Union[mpc, np.complex]:
     r"""Hypergeometric 2f2
 
     Parameters
@@ -117,10 +176,14 @@ def hypergeometric_2f2(betaDelta: mpf, M: int, m: int, rhoES: int) -> mpc:
 
     Returns
     -------
-    `~mpmath.mpc`
+    f : `~mpmath.mpc`
+        Has a real and imaginary component because the argument to the
+        :math:`_2F_2` is complex.
 
     """
-    return hyp2f2(m + 2, M + m + 1, 2 * m + 4, m + M + 2, 2j * betaDelta * rhoES)
+    astype = astype or mpc
+    f = hyp2f2(m + 2, M + m + 1, 2 * m + 4, m + M + 2, 2j * betaDelta * rhoES)
+    return f.astype(astype)
 
 
 # /def
@@ -139,11 +202,10 @@ def make_parser(
     Mmax: int = _BIGMMAX,
     mmax: int = _LITTLEMMAX,
     lmax: int = _LMAX,
-    # gamma type
-    gamma: str = "both",
+    # hypergeometric kind
+    kind: str = "both",
     # general
     data_dir: str = DATA_DIR,
-    # plot: bool = _PLOT,
     verbose: bool = _VERBOSE,
     inheritable: bool = False,
 ) -> argparse.ArgumentParser:
@@ -182,22 +244,26 @@ def make_parser(
         if True, sets ``add_help=False`` and ``conflict_hander='resolve'``
 
     """
+    # make parser
     parser = argparse.ArgumentParser(
-        description="",
+        description="Compute hypergeometric cubes for spectral calculations.",
         add_help=not inheritable,
         conflict_handler="resolve" if not inheritable else "error",
     )
 
+    # beta-delta arguments
     parser.add_argument("--BDmin", action="store", default=BDmin, type=float)
     parser.add_argument("--BDmax", action="store", default=BDmax, type=float)
     parser.add_argument("--BDstep", action="store", default=BDstep, type=float)
 
+    # indices argmunets
     parser.add_argument("--Mmax", action="store", default=Mmax, type=int)
     parser.add_argument("--mmax", action="store", default=mmax, type=int)
     parser.add_argument("--lmax", action="store", default=lmax, type=int)
 
+    # 1F2 or 2F2
     parser.add_argument(
-        "--gamma", choices=["gamma", "nogam", "both"], type=str, default="both"
+        "--kind", choices=["1F2", "2F2", "both"], type=str, default="both"
     )
 
     # where to save stuff
@@ -217,8 +283,8 @@ def make_parser(
     )
 
     # ------------------
-
     # Schwimmbad multiprocessing
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--ncores",
@@ -248,67 +314,74 @@ class Worker:
     """Worker."""
 
     def __init__(self, opts: T.Mapping) -> None:
-        # this defines the cube for all terms in the sums to perform the diffusion
-        # distortion integral.
-        L, m, M = np.mgrid[0 : opts.lmax, 0 : opts.mmax, 0 : opts.Mmax]
+        # this defines the cube for all terms in the sums to perform the
+        # diffusion distortion integral.
+        grid = np.mgrid[0 : opts.lmax, 0 : opts.mmax, 0 : opts.Mmax]
+        self.L, self.m, self.M = grid
         # TODO! rename m vs M. too confusing
 
-        self.L = L
-        self.m = m
-        self.M = M
         self.verbose = opts.verbose
+
         drct = pathlib.Path(opts.data_dir)
         drct.mkdir(exist_ok=True)
 
-        # No-Gamma functions.
-        nogam_folder = "hyp1f2"
-        nogam_drct = drct.joinpath(nogam_folder)
-        nogam_drct.mkdir(exist_ok=True)
-        self.nogam_drct = nogam_drct
+        # Hypergeometric 1f2
+        oneFtwo_folder = "hyp1f2"
+        oneFtwo_drct = drct.joinpath(oneFtwo_folder)
+        oneFtwo_drct.mkdir(exist_ok=True)
+        self.oneFtwo_drct = oneFtwo_drct
 
-        # Gamma functions.
-        gamma_folder = "hyp2f2"
-        gamma_drct = drct.joinpath(gamma_folder)
-        gamma_drct.mkdir(exist_ok=True)
-        self.gamma_drct = gamma_drct
+        # Hypergeometric 2f2
+        twoFtwo_folder = "hyp2f2"
+        twoFtwo_drct = drct.joinpath(twoFtwo_folder)
+        twoFtwo_drct.mkdir(exist_ok=True)
+        self.twoFtwo_drct = twoFtwo_drct
 
     # /def
 
-    def compute_and_save(self, bD: mpf, gamma: str) -> mpc:
+    def __call__(
+        self,
+        task: T.Union[T.Tuple[mpf, str], T.Tuple[mpf, str, T.Optional[type]]],
+    ) -> T.Union[mpc, np.ndarray]:
         """Compute and save.
 
         Parameters
         ----------
         bD : float
-        gamma : bool
-            Whether to calculate the gamma or no-gamma versions.
+        kind : {"1F2", "2F2"}
+            Whether to calculate the 1F2 or 2F2 hypergeometric function.
+        astype : None or type
 
         Returns
         -------
-        C : mpc
+        F : array-like [mpf, mpc, np.float, np.complex]
+            The 1F2 or 2F2 hypergeometric calculation.
 
         """
-        L, m, M = self.L, self.m, self.M
+        if len(task) == 2:
+            bD, kind = task
+            astype = None
+        else:
+            bD, kind, astype = task
+
         bDstr = str(bD).replace(".", "_")
 
         # compute C
-        if gamma:
-            C = hypergeometric_2f2(mpf(bD), M=M, m=m, rhoES=L)
-            # save result
-            np.save(self.gamma_drct.joinpath("hyp2f2-" + bDstr), C)
+        if kind == "1F2":
+            F = hypergeometric_2f2(
+                mpf(bD), M=self.M, m=self.m, rhoES=self.L, astype=astype
+            )
+            np.save(self.twoFtwo_drct / ("hyp2f2-" + bDstr), F)
 
+        elif kind == "2F2":
+            F = hypergeometric_1f2(
+                mpf(bD), M=self.M, m=self.m, rhoES=self.L, astype=astype
+            )
+            np.save(self.oneFtwo_drct / ("hyp1f2-" + bDstr), F)
         else:
-            C = hypergeometric_1f2(mpf(bD), M=M, m=m, rhoES=L)
-            # save result
-            np.save(self.nogam_drct.joinpath("hyp1f2-" + bDstr), C)
+            raise ValuError("`kind` must be one of {'1f2', '2f2'}")
 
-        return C
-
-    # /def
-
-    def __call__(self, task: T.Tuple[mpf, str]) -> mpc:
-        bD, gamma = task
-        return self.compute_and_save(bD, gamma)
+        return F
 
     # /def
 
@@ -339,7 +412,7 @@ def main(
         p = opts
     else:
         if opts is not None:
-            warnings.warn("Not using `opts` because `args` are given")
+            warnings.warn("Not using `opts` because `args` are given.")
         if isinstance(args, str):
             args = args.split()
 
@@ -353,18 +426,16 @@ def main(
     # need to be interpolated as a function of $\beta \Delta$.
     betaDeltas = np.arange(p.BDmin, p.BDmax, p.BDstep)
 
-    if p.gamma == "both":
-        iterator = ((bD, g) for bD in betaDeltas for g in (False, True))
+    # the iterator provides the beta-delta value and the hypergeometric type
+    # to calculate (1F2 or 2F2).
+    if p.kind == "both":  # make alternating iterator
+        iterator = ((bD, kind) for bD in betaDeltas for kind in ("1F2", "2F2"))
         leniter = 2 * len(betaDeltas)
     else:
-        iterator = ((bD, p.gamma) for bD in betaDeltas)
+        iterator = ((bD, p.kind) for bD in betaDeltas)
         leniter = len(betaDeltas)
 
-    t = (
-        tqdm(total=leniter)
-        if (p.verbose and HAS_TQDM)
-        else _NoOpPBar()
-    )
+    t = tqdm(total=leniter) if (p.verbose and HAS_TQDM) else _NoOpPBar()
 
     worker = Worker(p)
     pool = schwimmbad.choose_pool(mpi=p.mpi, processes=p.n_cores)

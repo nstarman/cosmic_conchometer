@@ -4,7 +4,7 @@ include setup.cfg
 include LICENSE.rst
 include pyproject.toml
 
-recursive-include cosmic_conchometer *.pyx *.c *.pxd *.cfg
+recursive-include cosmic_conchometer *.py *.pyx *.c *.pxd *.cfg
 recursive-include docs *
 recursive-include licenses *
 recursive-include scripts *

@@ -4,7 +4,6 @@
 
 __all__ = [
     # functions
-    "_blackbody",
     "blackbody",
     "default_Ak",
     "CosmologyDependent",
@@ -27,10 +26,7 @@ from astropy.utils.state import ScienceState
 
 # PROJECT-SPECIFIC
 from .config import conf
-
-# from .utils import z_matter_radiation_equality
-# from .utils import z_of_zeta as _z_of_zeta
-# from .utils import zeta_of_z as _zeta_of_z
+from .typing import ArrayLike
 
 ##############################################################################
 # PARAMETERS
@@ -46,7 +42,7 @@ _bb_unit: u.UnitBase = u.erg / (u.cm ** 2 * u.s * u.Hz * u.sr)  # default unit
 
 _GHz_h_kB_in_K: float = (1 * u.GHz * const.h / const.k_B).to_value(u.K)
 """h / k_B times GHz."""
-_GHz3_h_c2_in_erg_Hzssrcm2: float = (
+_GHz3_hc2_2_erg_Hzssrcm2: float = (
     1 * u.GHz ** 3 * const.h / const.c ** 2 / u.sr
 ).to_value(_bb_unit)
 """h / c**2 times GHz^3 in erg / Hz s sr cm^2."""
@@ -56,39 +52,6 @@ _GHz3_h_c2_in_erg_Hzssrcm2: float = (
 # CODE
 ##############################################################################
 # Blackbody
-
-
-def _blackbody(
-    frequency: T.Union[float, np.ndarray],
-    temperature: T.Union[float, np.ndarray],
-) -> T.Union[float, np.ndarray]:
-    """Planck blackbody function, without units.
-
-    Parameters
-    ----------
-    frequency : array-like
-        Frequency (value) in GHz.
-    temperature : array-like
-        Temperature (value) in K.
-
-    Returns
-    -------
-    array-like
-        The blackbody (value) in units of :math:`\frac{erg}{cm^2 sr}`
-
-    """
-    log_boltz = _GHz_h_kB_in_K * frequency / temperature
-    boltzm1 = np.expm1(log_boltz)
-
-    bb_nu = 2.0 * _GHz3_h_c2_in_erg_Hzssrcm2 * frequency ** 3 / boltzm1
-
-    return bb_nu
-
-
-# /def
-
-
-# -------------------------------------------------------------------
 
 
 @u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
@@ -102,14 +65,19 @@ def blackbody(frequency: u.Quantity, temperature: u.Quantity) -> u.Quantity:
 
     Returns
     -------
-    `~astropy.units.Quanity`
+    `~astropy.units.Quantity`
         The blackbody in units of :math:`\frac{erg}{cm^2 sr}`
 
     """
-    return (
-        _blackbody(frequency.to_value(u.GHz), temperature.to_value(u.K))
-        * _bb_unit
-    )
+    # TODO undo the units shortcuts
+    frequency = frequency.to_value(u.GHz)
+    log_boltz = _GHz_h_kB_in_K * frequency / temperature.to_value(u.K)
+    boltzm1 = np.expm1(log_boltz)
+
+    bb_nu = (
+        2.0 * _GHz3_hc2_2_erg_Hzssrcm2 * frequency ** 3 / boltzm1
+    ) * _bb_unit
+    return bb_nu
 
 
 # /def
@@ -118,7 +86,7 @@ def blackbody(frequency: u.Quantity, temperature: u.Quantity) -> u.Quantity:
 #####################################################################
 
 
-def _Ak_unity(k: T.Union[float, np.ndarray]) -> complex:
+def _Ak_unity(k: ArrayLike) -> complex:
     """:math:`A(k) = 1.0 + 0j`.
 
     Parameters
@@ -244,7 +212,7 @@ class CosmologyDependent:
     """
 
     def __init__(self, cosmo: Cosmology):
-        self._cosmo: Cosmology = cosmo
+        self._cosmo: Cosmology = cosmo  # the astropy cosmology
 
         # self.zeq: float = z_matter_radiation_equality(cosmo)[0]
         # self.zeta0: float = self.zeta(0)
@@ -278,8 +246,8 @@ class CosmologyDependent:
 
     #     def zeta(
     #         self,
-    #         z: T.Union[float, np.ndarray],
-    #     ) -> T.Union[float, np.ndarray]:
+    #         z: ArrayLike,
+    #     ) -> ArrayLike:
     #         """Zeta(z).
     #
     #         Parameters
@@ -298,8 +266,8 @@ class CosmologyDependent:
     #
     #     def z_of_zeta(
     #         self,
-    #         zeta: T.Union[float, np.ndarray],
-    #     ) -> T.Union[float, np.ndarray]:
+    #         zeta: ArrayLike,
+    #     ) -> ArrayLike:
     #         """z(zeta).
     #
     #         Parameters
@@ -365,67 +333,37 @@ class CosmologyDependent:
     #
     #     # /def
 
-    # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
-    @staticmethod
-    def rEShat(
-        thetaES: T.Union[float, np.ndarray, u.Quantity],
-        phiES: T.Union[float, np.ndarray, u.Quantity],
-    ) -> np.ndarray:
-        """Direction from emission to scatter.
+    # # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
+    # @staticmethod
+    # def rEShat(
+    #     thetaES: T.Union[float, np.ndarray, u.Quantity],
+    #     phiES: T.Union[float, np.ndarray, u.Quantity],
+    # ) -> np.ndarray:
+    #     """Direction from emission to scatter.
 
-        Parameters
-        ----------
-        thetaES, phiES : float or array or `~astropy.units.Quantity`
-            In degrees.
+    #     Parameters
+    #     ----------
+    #     thetaES, phiES : float or array or `~astropy.units.Quantity`
+    #         In degrees.
 
-            .. todo:: Explain theta and phi coordinates
+    #         .. todo:: Explain theta and phi coordinates
 
-        Returns
-        -------
-        array
-            (3,) array of direction from emission to scatter.
-            Unit magnitude.
+    #     Returns
+    #     -------
+    #     array
+    #         (3,) array of direction from emission to scatter.
+    #         Unit magnitude.
 
-        """
-        return np.array(
-            [
-                np.sin(thetaES) * np.cos(phiES),
-                np.sin(thetaES) * np.sin(phiES),
-                np.cos(thetaES),
-            ],
-        )
+    #     """
+    #     return np.array(
+    #         [
+    #             np.sin(thetaES) * np.cos(phiES),
+    #             np.sin(thetaES) * np.sin(phiES),
+    #             np.cos(thetaES),
+    #         ],
+    #     )
 
-    # /def
-
-    def _blackbody(
-        self,
-        frequency: T.Union[float, np.ndarray],
-        temperature: T.Union[float, np.ndarray] = None,
-    ) -> T.Union[float, np.ndarray]:
-        r"""Blackbody spectrum, without units.
-
-        Parameters
-        ----------
-        frequency : array-like
-            Frequency in GHz.
-        temperature : array-like (optional)
-            Temperature in K. Defaults to ``cosmo.Tcmb0``
-
-        Returns
-        -------
-        array-like
-            The blackbody in units of :math:`\frac{erg}{cm^2 sr}`
-
-        """
-        bb: T.Union[float, np.ndarray] = _blackbody(
-            frequency,
-            temperature
-            if temperature is not None
-            else self.Tcmb0.to_value(u.K),
-        )
-        return bb
-
-    # /def
+    # # /def
 
     @u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
     def blackbody(
