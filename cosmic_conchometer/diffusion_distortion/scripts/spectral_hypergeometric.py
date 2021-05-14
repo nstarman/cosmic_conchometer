@@ -4,26 +4,6 @@
 
 This script can be run from the command line with the following parameters:
 
-.. todo::
-
-    change saving to zarr format.
-
-    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp1f2data.zarr"),
-    #                 mode='w', shape=(200, 50, 30, 100),
-    #                chunks=(3, 50, 30, 100), dtype=np.float128)
-    # for i, bd in enumerate(tqdm.tqdm(bds)):
-    #     F = np.load(cosmic_conchometer.DATA_DIR / f"hyp1f2/hyp1f2-{bd}_0.npy",
-    #                 allow_pickle=True)
-    #     wFs[i, :, :, :] = F.astype(np.float128)
-
-    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp2f2data.zarr"),
-    #                 mode='w', shape=(200, 50, 30, 100),
-    #                chunks=(3, 50, 30, 100), dtype=np.complex128)
-    # for i, bd in enumerate(tqdm.tqdm(bds)):
-    #     F = np.load(cosmic_conchometer.DATA_DIR / f"hyp2f2/hyp2f2-{bd}_0.npy",
-    #                 allow_pickle=True)
-    #     wFs[i, :, :, :] = F.astype(np.complex128)
-
 Parameters
 ----------
 BDmin : float (default = {BDmin})
