@@ -17,6 +17,7 @@ from __future__ import annotations
 import typing as T
 
 # THIRD PARTY
+import astropy.constants as const
 import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
@@ -25,6 +26,7 @@ from astropy.cosmology.core import Cosmology
 from cosmic_conchometer.typing import TArrayLike
 
 __all__ = [
+    "lambda_naught",
     "z_matter_radiation_equality",
     "z_of",
     "a_of",
@@ -37,22 +39,41 @@ __all__ = [
 # PARAMETERS
 
 # alpha
-alpha0: u.Quantity
-alpha_0: u.Quantity
-alpha0 = alpha_0 = 0 << u.one
-
-alphaeq: u.Quantity
-alpha_eq: u.Quantity
-alphaeq = alpha_eq = 0 << u.one
+alpha0: u.Quantity = 0 << u.one
+alphaeq: u.Quantity = 1 << u.one
 
 # rho
-rho0: u.Quantity
+rho0: u.Quantity = 1 / np.sqrt(2) << u.one
+rhoeq: u.Quantity = 1 << u.one
 
 # static types
 TZ = T.TypeVar("TZ", float, u.Quantity)  # u.Quantity[dimensionless]
 
 ##############################################################################
 # CODE
+##############################################################################
+
+
+@u.quantity_input(returns=u.Mpc)
+def lambda_naught(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
+    """Compute lambda0.
+
+    Parameters
+    ----------
+    cosmo : `~astropy.cosmology.Cosmology`
+    **zeq_kw
+        kwargs into scipy minimizer. See `~scipy.optimize.brentq` for details.
+
+    """
+    alphaobs: u.Quantity = alpha_observer(cosmo, **zeq_kw)
+    lambda0: u.Quantity = (const.c / cosmo.H0) * np.sqrt(
+        8 / (cosmo.Om0 * alphaobs),
+    )
+    return lambda0
+
+
+# /def
+
 ##############################################################################
 
 
@@ -102,10 +123,7 @@ def z_matter_radiation_equality(
     zeq, *rest = brentq(f, zmin, zmax, full_output=True, **rootkw)
     z_eq: u.Quantity = zeq << u.one
 
-    if not full_output:
-        return z_eq
-    else:
-        return z_eq, rest
+    return z_eq if not full_output else (z_eq, rest)
 
 
 # /def
@@ -338,12 +356,12 @@ class alpha_of:
     @property
     def naught(self) -> u.Quantity:
         """alpha at the beginning of time."""
-        return 0.0 << u.one
+        return alpha0
 
     @property
     def matter_radiation_equality(self) -> u.Quantity:
         """alpha at matter-radiation equality."""
-        return 1.0 << u.one
+        return alphaeq
 
     @staticmethod
     def observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
@@ -385,12 +403,12 @@ class rho_of:
     @property
     def naught(self) -> u.Quantity:
         """rho at the beginning of time."""
-        return 1.0 / np.sqrt(2.0) << u.one
+        return rho0
 
     @property
     def matter_radiation_equality(self) -> u.Quantity:
         """rho at matter-radiation equality."""
-        return 1.0 << u.one
+        return rhoeq
 
     @staticmethod
     def observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
