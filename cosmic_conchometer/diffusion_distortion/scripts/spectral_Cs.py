@@ -46,13 +46,16 @@ import warnings
 # THIRD PARTY
 import numpy as np
 import schwimmbad
-from scipy.special import spherical_jn as besselJ, gamma
-
-# from mpmath import gamma, mpc, mpf, pi, power, sqrt
+import zarr
+from scipy.special import gamma
+from scipy.special import spherical_jn as besselJ
 
 # PROJECT-SPECIFIC
+from .spectral_hypergeometric import _VERBOSE, DATA_DIR
 from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
-from .spectral_hypergeometric import DATA_DIR, _VERBOSE
+
+# from mpmath import mpc, mpf  # gamma
+
 
 if HAS_TQDM:
     # THIRD PARTY
@@ -70,7 +73,7 @@ __doc__.format(data_dir=DATA_DIR, verbose=_VERBOSE)
 
 
 def Cnogam_from_1F2(F: np.ndarray, bd: float) -> np.ndarray:
-    """
+    r"""Calculate C1F2 cube.
 
     Parameters
     ----------
@@ -114,7 +117,7 @@ def Cnogam_from_1F2(F: np.ndarray, bd: float) -> np.ndarray:
 
 
 def Cgamma_from_2F2(F: np.ndarray, bd: float) -> np.ndarray:
-    """
+    r"""Calculate C2F2 cube.
 
     .. todo::
 
@@ -144,7 +147,7 @@ def Cgamma_from_2F2(F: np.ndarray, bd: float) -> np.ndarray:
             - factor * besselJ(ms + 1, bd * ls) * np.exp(1j * bd * ls)
         )
 
-    t2 = np.sqrt(np.pi) / np.power(2, m + 2) / gamma(m + 2.5)
+    t2 = np.sqrt(np.pi) / np.power(2, ms + 2) / gamma(ms + 2.5)
 
     # TODO! simplify? what's the danger of almost cancelations?
     t3 = np.power(ls + 1, ms + 2) * bd * 1j / (Ms + ms + 2) * F[1:]
@@ -172,12 +175,14 @@ def Cgamma_from_2F2(F: np.ndarray, bd: float) -> np.ndarray:
 # Read info from F cubes
 
 
-def _from_numpy_dir(path):
+def _from_numpy_dir(
+    path: pathlib.Path,
+) -> T.Tuple[T.Sequence, T.Generator, tuple]:
     fs = tuple(path.glob("*.npy"))
-    getbD = lambda f: float(f.stem.split("-")[-1].replace("_", "."))
-    bDs = [getbD(f) for f in fs]
+    """Load from numpy directory."""
+    bDs = [float(f.stem.split("-")[-1].replace("_", ".")) for f in fs]
     iterator = (
-        ("Cnogam", np.load(f, allow_pickle=True), bD) for bd, f in zip(bDs, fs)
+        ("Cnogam", np.load(f, allow_pickle=True), bD) for bD, f in zip(bDs, fs)
     )
     shape = (len(bDs), *np.load(fs[0], allow_pickle=True).shape)
 
@@ -187,8 +192,10 @@ def _from_numpy_dir(path):
 # /def
 
 
-def _from_zarr_dir(path):
-
+def _from_zarr_dir(
+    path: pathlib.Path,
+) -> T.Tuple[T.Sequence, T.Generator, tuple]:
+    """Load from zarr directory."""
     rFs = zarr.open(str(path), mode="r")
     bDs = tuple(rFs.attrs["betaDelta"])
     iterator = (rFs[i] for i, bD in enumerate(bDs))
@@ -206,7 +213,7 @@ def _from_zarr_dir(path):
 
 def make_parser(
     *,
-    data_dir: str = DATA_DIR,
+    data_dir: str = str(DATA_DIR),
     verbose: bool = _VERBOSE,
     inheritable: bool = False,
 ) -> argparse.ArgumentParser:
@@ -251,11 +258,18 @@ def make_parser(
 
     # where stuff is saved and where to save it
     parser.add_argument(
-        "--data_dir", action="store", default=data_dir, type=str
+        "--data_dir",
+        action="store",
+        default=data_dir,
+        type=str,
     )
     # script verbosity
     parser.add_argument(
-        "-v", "--verbose", action="store", default=verbose, type=bool
+        "-v",
+        "--verbose",
+        action="store",
+        default=verbose,
+        type=bool,
     )
 
     return parser
@@ -270,33 +284,36 @@ def make_parser(
 class Worker:
     """Worker."""
 
-    def __init__(self, opts: object) -> None:
+    def __init__(self, kind: str, shape: tuple, bDs: T.Sequence) -> None:
 
-        if opts.kind in ("Cnogam", "both"):
+        if kind in ("Cnogam", "both"):
             self.Cnogam_drct = DATA_DIR / "scriptC_nogam.zarr"
             self.Cnogam = zarr.open(
                 str(self.Cnogam_drct),
                 mode="a",  # read/write (create if doesn’t exist)
-                shape=opts.shape,
+                shape=shape,
                 chunks=(3, *shape[1:]),
                 dtype=np.float128,
             )
-            self.Cnogam.attrs["betaDelta"] = opts.bDs
+            self.Cnogam.attrs["betaDelta"] = np.array(bDs)
 
-        if opts.kind in ("Cgamma", "both"):
+        if kind in ("Cgamma", "both"):
             self.Cgamma_drct = DATA_DIR / "scriptC_gamma.zarr"
             self.Cgamma = zarr.open(
                 str(self.Cgamma_drct),
                 mode="a",  # read/write (create if doesn’t exist)
-                shape=opts.shape,
+                shape=shape,
                 chunks=(3, *shape[1:]),
                 dtype=np.complex128,
             )
-            self.Cnogam.attrs["betaDelta"] = opts.bDs
+            self.Cnogam.attrs["betaDelta"] = np.array(bDs)
 
     # /def
 
-    def __call__(self, task: T.Tuple[mpf, str]) -> mpc:
+    def __call__(
+        self,
+        task: T.Tuple[str, T.Callable, np.float128],
+    ) -> np.complex128:
         kind, F, bD = task
 
         if kind == "Cnogam":
@@ -306,7 +323,7 @@ class Worker:
             arr = self.Cgamma
             func = Cgamma_from_2F2
         else:
-            raise ValuError("`kind` must be one of {'Cnogam', 'Cgamma'}")
+            raise ValueError("`kind` must be one of {'Cnogam', 'Cgamma'}")
 
         # calculate and store
         idx = arr.attrs["betaDelta"].index(bD)  # exact match!
@@ -354,28 +371,27 @@ def main(
     if p.kind in ("Cnogam", "both"):
         path = pathlib.Path(p.data_dir) / "hyp1f2"
         if path.exists():  # it's a numpy
-            bDs, iterator, shape = _from_numpy_dir(path)
+            bDs, itr, shape = _from_numpy_dir(path)
         elif path.with_suffix(".zarr").exists():
-            bDs, iterator, shape = _from_numpy_dir(path.with_suffix(".zarr"))
+            bDs, itr, shape = _from_zarr_dir(path.with_suffix(".zarr"))
         else:
             raise IOError("trouble with 1F2")
-        iterators.append(iterator)
+        iterators.append(itr)
 
     if p.kind in ("Cgamma", "both"):
         path = pathlib.Path(p.data_dir) / "hy21f2"
         if path.exists():  # it's a numpy
-            bDs, iterator, shape = _from_numpy_dir(path)
+            bDs, itr, shape = _from_numpy_dir(path)
         elif path.with_suffix(".zarr").exists():
-            bDs, iterator, shape = _from_numpy_dir(path.with_suffix(".zarr"))
+            bDs, itr, shape = _from_zarr_dir(path.with_suffix(".zarr"))
         else:
             raise IOError("trouble with 2F2")
-        iterators.append(iterator)
+        iterators.append(itr)
 
-    iterator = itertools.chain.from_iterable(iterators)  # compress iterators
-    p.shape = shape
-    p.bDs = bDs
+    iterator: T.Iterator = itertools.chain.from_iterable(iterators)
+    # compress iterators into single iterator.
 
-    worker = Worker(p)
+    worker = Worker(p.kind, shape, bDs)
     pool = schwimmbad.choose_pool(mpi=p.mpi, processes=p.n_cores)
     t = tqdm(total=len(bDs)) if (p.verbose and HAS_TQDM) else _NoOpPBar()
     for r in pool.map(worker, iterator):

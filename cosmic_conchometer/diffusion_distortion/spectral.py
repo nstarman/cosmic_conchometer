@@ -18,8 +18,8 @@ from astropy.cosmology.core import Cosmology
 from classy import Class
 
 # PROJECT-SPECIFIC
-from .core import DiffusionDistortionBase, IUSType
-from cosmic_conchometer.typing import ArrayLike, TArrayLike, ArrayLike_Callable
+from .core import DiffusionDistortionBase
+from cosmic_conchometer.typing import ArrayLike_Callable
 
 ##############################################################################
 # CODE

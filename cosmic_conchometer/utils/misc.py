@@ -10,14 +10,6 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
-# BUILT-IN
-import typing as T
-
-# THIRD PARTY
-import numpy as np
-from astropy.cosmology import default_cosmology
-from astropy.cosmology.core import Cosmology
-
 ##############################################################################
 # CODE
 ##############################################################################

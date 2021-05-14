@@ -22,7 +22,7 @@ from classy import Class
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
-from cosmic_conchometer.typing import ArrayLike, TArrayLike, ArrayLike_Callable
+from cosmic_conchometer.typing import ArrayLike, ArrayLike_Callable
 
 ##############################################################################
 # PARAMETERS

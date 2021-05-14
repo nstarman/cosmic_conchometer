@@ -8,16 +8,20 @@ This script can be run from the command line with the following parameters:
 
     change saving to zarr format.
 
-    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp1f2data.zarr"), mode='w', shape=(200, 50, 30, 100),
+    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp1f2data.zarr"),
+    #                 mode='w', shape=(200, 50, 30, 100),
     #                chunks=(3, 50, 30, 100), dtype=np.float128)
     # for i, bd in enumerate(tqdm.tqdm(bds)):
-    #     F = np.load(cosmic_conchometer.DATA_DIR / "hyp1f2" / f"hyp1f2-{bd}_0.npy", allow_pickle=True)
+    #     F = np.load(cosmic_conchometer.DATA_DIR / f"hyp1f2/hyp1f2-{bd}_0.npy",
+    #                 allow_pickle=True)
     #     wFs[i, :, :, :] = F.astype(np.float128)
-    
-    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp2f2data.zarr"), mode='w', shape=(200, 50, 30, 100),
+
+    # wFs = zarr.open(str(cosmic_conchometer.DATA_DIR / "hyp2f2data.zarr"),
+    #                 mode='w', shape=(200, 50, 30, 100),
     #                chunks=(3, 50, 30, 100), dtype=np.complex128)
     # for i, bd in enumerate(tqdm.tqdm(bds)):
-    #     F = np.load(cosmic_conchometer.DATA_DIR / "hyp2f2" / f"hyp2f2-{bd}_0.npy", allow_pickle=True)
+    #     F = np.load(cosmic_conchometer.DATA_DIR / f"hyp2f2/hyp2f2-{bd}_0.npy",
+    #                 allow_pickle=True)
     #     wFs[i, :, :, :] = F.astype(np.complex128)
 
 Parameters
@@ -62,7 +66,6 @@ __all__ = [
 
 # BUILT-IN
 import argparse
-import itertools
 import pathlib
 import typing as T
 import warnings
@@ -71,7 +74,6 @@ import warnings
 import numpy as np
 import schwimmbad
 from mpmath import hyp1f2, hyp2f2, mpc, mpf
-from scipy.special import spherical_jn as besselJ
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.data import DATA_DIR
@@ -116,7 +118,11 @@ __doc__.format(
 
 @np.vectorize
 def hypergeometric_1f2(
-    betaDelta: mpf, M: int, m: int, rhoES: int, astype: T.Optional[type] = None
+    betaDelta: mpf,
+    M: int,
+    m: int,
+    rhoES: int,
+    astype: T.Optional[type] = None,
 ) -> T.Union[mpf, np.float]:
     r"""Hypergeometric 1f2 for the spectral distortion calculation.
 
@@ -155,7 +161,11 @@ def hypergeometric_1f2(
 
 @np.vectorize
 def hypergeometric_2f2(
-    betaDelta: mpf, M: int, m: int, rhoES: int, astype: T.Optional[type] = None
+    betaDelta: mpf,
+    M: int,
+    m: int,
+    rhoES: int,
+    astype: T.Optional[type] = None,
 ) -> T.Union[mpc, np.complex]:
     r"""Hypergeometric 2f2
 
@@ -205,7 +215,7 @@ def make_parser(
     # hypergeometric kind
     kind: str = "both",
     # general
-    data_dir: str = DATA_DIR,
+    data_dir: str = str(DATA_DIR),
     verbose: bool = _VERBOSE,
     inheritable: bool = False,
 ) -> argparse.ArgumentParser:
@@ -263,7 +273,10 @@ def make_parser(
 
     # 1F2 or 2F2
     parser.add_argument(
-        "--kind", choices=["1F2", "2F2", "both"], type=str, default="both"
+        "--kind",
+        choices=["1F2", "2F2", "both"],
+        type=str,
+        default="both",
     )
 
     # where to save stuff
@@ -313,7 +326,7 @@ def make_parser(
 class Worker:
     """Worker."""
 
-    def __init__(self, opts: T.Mapping) -> None:
+    def __init__(self, opts: argparse.Namespace) -> None:
         # this defines the cube for all terms in the sums to perform the
         # diffusion distortion integral.
         grid = np.mgrid[0 : opts.lmax, 0 : opts.mmax, 0 : opts.Mmax]
@@ -358,28 +371,31 @@ class Worker:
             The 1F2 or 2F2 hypergeometric calculation.
 
         """
-        if len(task) == 2:
-            bD, kind = task
-            astype = None
-        else:
-            bD, kind, astype = task
-
-        bDstr = str(bD).replace(".", "_")
+        astype = None if (len(task) == 2) else task[-1]
+        bDstr = str(task[0]).replace(".", "_")
 
         # compute C
-        if kind == "1F2":
+        if task[1] == "1F2":
             F = hypergeometric_2f2(
-                mpf(bD), M=self.M, m=self.m, rhoES=self.L, astype=astype
+                mpf(task[0]),
+                M=self.M,
+                m=self.m,
+                rhoES=self.L,
+                astype=astype,
             )
             np.save(self.twoFtwo_drct / ("hyp2f2-" + bDstr), F)
 
-        elif kind == "2F2":
+        elif task[1] == "2F2":
             F = hypergeometric_1f2(
-                mpf(bD), M=self.M, m=self.m, rhoES=self.L, astype=astype
+                mpf(task[0]),
+                M=self.M,
+                m=self.m,
+                rhoES=self.L,
+                astype=astype,
             )
             np.save(self.oneFtwo_drct / ("hyp1f2-" + bDstr), F)
         else:
-            raise ValuError("`kind` must be one of {'1f2', '2f2'}")
+            raise ValueError("`kind` must be one of {'1f2', '2f2'}")
 
         return F
 

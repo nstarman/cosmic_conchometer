@@ -41,35 +41,28 @@ __all__ = [
 
 # BUILT-IN
 import argparse
-import itertools
-import pathlib
 import typing as T
 import warnings
 
 # PROJECT-SPECIFIC
-from cosmic_conchometer.setup_package import HAS_TQDM, _NoOpPBar
+from .spectral_Cs import main as Cs_main
 from .spectral_hypergeometric import (
-    _BDMIN,
     _BDMAX,
+    _BDMIN,
     _BDSTEP,
     _BIGMMAX,
     _LITTLEMMAX,
     _LMAX,
-    DATA_DIR,
     _VERBOSE,
 )
-from .spectral_hypergeometric import (
-    make_parser as hypergeometric_parser,
-    main as hypergeometric_main,
-)
-from .spectral_Cs import make_parser as Cs_parser, main as Cs_main
-
-if HAS_TQDM:
-    # THIRD PARTY
-    from tqdm import tqdm
+from .spectral_hypergeometric import DATA_DIR as _DATA_DIR
+from .spectral_hypergeometric import main as hypergeometric_main
+from .spectral_hypergeometric import make_parser as hypergeometric_parser
 
 ##############################################################################
 # PARAMETERS
+
+DATA_DIR = str(_DATA_DIR)
 
 # format documentation
 __doc__.format(
@@ -197,7 +190,7 @@ def main(
     # /if
 
     # make hypergeometric cubes
-    hypergeometric_main(opts=p)
+    hypergeometric_main(opts=opts)
 
     # make C cubes
     # re-interpret "kind" argument
@@ -208,7 +201,7 @@ def main(
     elif opts.kind == "2F2":
         opts.kind = "Cgamma"
 
-    Cs_main(opts=p)
+    Cs_main(opts=opts)
 
 
 # /def

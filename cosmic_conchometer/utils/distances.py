@@ -25,14 +25,12 @@ __all__ = [
 import typing as T
 
 # THIRD PARTY
-import numpy as np
 import astropy.units as u
-from astropy.cosmology import default_cosmology
+import numpy as np
 from astropy.cosmology.core import Cosmology
 
 # PROJECT-SPECIFIC
-from cosmic_conchometer.typing import ArrayLike, TArrayLike
-
+from cosmic_conchometer.typing import TArrayLike
 
 ##############################################################################
 # PARAMETERS
@@ -49,7 +47,7 @@ alphaeq = alpha_eq = 0 << u.one
 # rho
 rho0: u.Quantity
 
-# types
+# static types
 TZ = T.TypeVar("TZ", float, u.Quantity)  # u.Quantity[dimensionless]
 
 ##############################################################################
@@ -64,7 +62,7 @@ def z_matter_radiation_equality(
     *,
     full_output: bool = False,
     **rootkw: T.Any,
-) -> T.Tuple[u.Quantity, T.Tuple[T.Any, ...]]:
+) -> T.Union[u.Quantity, T.Tuple[u.Quantity, T.Tuple[T.Any, ...]]]:
     """Calculate matter-radiation equality redshift for a given cosmology.
 
     This works for a cosmology with any number of components.
@@ -99,12 +97,14 @@ def z_matter_radiation_equality(
         diff: TZ = cosmo.Om(z) - cosmo.Ogamma(z)
         return diff
 
-    z_eq: u.Quantity
     rest: T.Tuple[T.Any, ...]
     zeq, *rest = brentq(f, zmin, zmax, full_output=True, **rootkw)
-    z_eq = zeq << u.one
+    z_eq: u.Quantity = zeq << u.one
 
-    return z_eq if not full_output else (z_eq, rest)
+    if not full_output:
+        return z_eq
+    else:
+        return z_eq, rest
 
 
 # /def
@@ -139,7 +139,7 @@ class z_of:
             If 'eq' does not have key "aeq" nor "zeq".
 
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
         # hardcoded a_of.z(zeq)
 
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
@@ -155,9 +155,9 @@ class z_of:
         rho: array-like
         **eq : float or scalar `~astropy.units.Quantity`
             works with keys "aeq" or "zeq"
-        
+
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
 
         alpha: TArrayLike = 2.0 * rho ** 2 - 1.0
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
@@ -225,7 +225,8 @@ class a_of:
     @staticmethod
     def alpha(alpha: TArrayLike, aeq: TZ) -> TArrayLike:
         """Scale factor from alpha."""
-        return aeq * alpha
+        a: TArrayLike = aeq * alpha
+        return a
 
     @staticmethod
     def rho(rho: TArrayLike, **eq: TZ) -> TArrayLike:
@@ -236,9 +237,9 @@ class a_of:
         rho: array-like
         **eq : float or scalar `~astropy.units.Quantity`
             works with keys "aeq" or "zeq"
-        
+
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
 
         alpha: TArrayLike = 2.0 * rho ** 2 - 1.0
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
@@ -276,7 +277,7 @@ class a_of:
 # alpha
 
 
-def alpha_observer(cosmo: Cosmology, **zeq_kw) -> u.Quantity:
+def alpha_observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
     """alpha at the location of the observer.
 
     Parameters
@@ -292,7 +293,7 @@ def alpha_observer(cosmo: Cosmology, **zeq_kw) -> u.Quantity:
 
     """
     zeq_kw["full_output"] = False
-    zeq = z_matter_radiation_equality(cosmo, **zeq_kw)
+    zeq: u.Quantity = z_matter_radiation_equality(cosmo, **zeq_kw)
 
     return zeq + 1.0
 
@@ -306,31 +307,27 @@ class alpha_of:
     @staticmethod
     def a(a: TArrayLike, **eq: TZ) -> TArrayLike:
         """alpha from the scale factor."""
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
         alpha: TArrayLike = a / aeq
         return alpha
 
     @staticmethod
     def z(z: TArrayLike, **eq: TZ) -> TArrayLike:
         """alpha from the redshift."""
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
         a: TArrayLike = 1.0 / (z + 1.0)
         alpha: TArrayLike = a / aeq
         return alpha
 
     @staticmethod
-    def rho(rho: TArrayLike, **eq: TZ) -> TArrayLike:
+    def rho(rho: TArrayLike) -> TArrayLike:
         """alpha from rho.
 
         Parameters
         ----------
-        rho: array-like
-        **eq : float or scalar `~astropy.units.Quantity`
-            works with keys "aeq" or "zeq"
-        
-        """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq.get("zeq") + 1.0))
+        rho: array-like or quantity-like ['dimensionless']
 
+        """
         alpha: TArrayLike = 2.0 * rho ** 2 - 1.0
         return alpha
 
@@ -348,7 +345,7 @@ class alpha_of:
         return 1.0 << u.one
 
     @staticmethod
-    def observer(cosmo: Cosmology, **zeq_kw) -> u.Quantity:
+    def observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
         """alpha at our location."""
         return alpha_observer(cosmo, **zeq_kw)
 
@@ -366,17 +363,20 @@ class rho_of:
     @staticmethod
     def z(z: TArrayLike, zeq: float) -> TArrayLike:
         """rho from the redshift."""
-        return np.sqrt((1.0 + alpha_of.z(z, zeq=zeq)) / 2.0)
+        rho: TArrayLike = np.sqrt((1.0 + alpha_of.z(z, zeq=zeq)) / 2.0)
+        return rho
 
     @staticmethod
     def a(a: TArrayLike, aeq: float) -> TArrayLike:
         """rho from the scale factor."""
-        return np.sqrt((1.0 + a / aeq) / 2.0)
+        rho: TArrayLike = np.sqrt((1.0 + a / aeq) / 2.0)
+        return rho
 
     @staticmethod
     def alpha(alpha: TArrayLike) -> TArrayLike:
         """rho from alpha."""
-        return np.sqrt((1.0 + alpha) / 2.0)
+        rho: TArrayLike = np.sqrt((1.0 + alpha) / 2.0)
+        return rho
 
     # -----------------------------------
     # specific times
@@ -392,7 +392,7 @@ class rho_of:
         return 1.0 << u.one
 
     @staticmethod
-    def observer(cosmo: Cosmology, **zeq_kw) -> u.Quantity:
+    def observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
         """rho at our location."""
         alpha: u.Quantity = alpha_observer(cosmo, **zeq_kw)
         rho: u.Quantity = np.sqrt((1.0 + alpha) / 2.0)

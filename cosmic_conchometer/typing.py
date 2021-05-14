@@ -6,9 +6,11 @@
 ##############################################################################
 # IMPORTS
 
+# BUILT-IN
 import typing as T
-import numpy as np
 
+# THIRD PARTY
+import numpy as np
 
 __all__ = [
     "ArrayLike",
@@ -24,17 +26,17 @@ NUMPY_VERSION = tuple([int(x) for x in np.version.version.split(".")])
 ##############################################################################
 # CODE
 
-if NUMPY_VERSION > (1, 20, 0):
-    import numpy.typing as npt
+# if NUMPY_VERSION > (1, 20, 0):
+#     # THIRD PARTY
+#     import numpy.typing as npt
+#
+#     ArrayLike = npt.ArrayLike
+#
+# else:
+#     ArrayLike = T.Union[float, list, tuple, np.ndarray]
+ArrayLike = T.Union[float, np.ndarray]
 
-    ArrayLike = npt.ArrayLike
-
-else:
-    ArrayLike = T.Union[float, list, tuple, np.ndarray]
-
-
-TArrayLike = T.TypeVar("TArrayLike", *ArrayLike.__args__)
-"""ArrayLike, but output type is input type."""
+TArrayLike = T.TypeVar("TArrayLike", float, np.ndarray)
 
 
 ArrayLike_Callable = T.Callable[
