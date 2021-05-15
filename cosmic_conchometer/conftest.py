@@ -78,6 +78,7 @@ def add_astropy(doctest_namespace: T.Any) -> None:
     # import
     # THIRD PARTY
     import astropy.units
+    import astropy.coordinates
 
     # add to namespace
     doctest_namespace["u"] = astropy.units
