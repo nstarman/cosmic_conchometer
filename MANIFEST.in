@@ -16,5 +16,6 @@ prune docs/api
 prune notebooks
 
 exclude .mypy.ini tox.ini .mailmap .pre-commit-config.yaml .readthedocs.yml
+exclude cosmic_conchometer/version.py
 
 global-exclude *.pyc *.o *.DS_Store */_old/* *.ipynb_checkpoints/* *.npy
