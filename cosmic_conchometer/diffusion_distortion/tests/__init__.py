@@ -4,9 +4,7 @@
 """Package Tests for `~cosmic_conchometer`."""
 
 __all__ = [
-    "test__ArrayLike_Callable",
-    "test__IUSType",
-    "Test_DiffusionDistortionBase",
+    "core_tests",
 ]
 
 
@@ -14,8 +12,7 @@ __all__ = [
 # IMPORT
 
 # PROJECT-SPECIFIC
-from .test_core import Test_DiffusionDistortionBase, test__ArrayLike_Callable
-from .test_spectral_distortion import test__IUSType
+from . import test_core as core_tests
 
 ##############################################################################
 # END

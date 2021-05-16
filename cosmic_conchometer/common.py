@@ -21,8 +21,10 @@ from astropy.utils.state import ScienceState
 # PROJECT-SPECIFIC
 from .config import conf
 from .typing import ArrayLike
+from .utils.distances import lambda_naught
 
 __all__ = [
+    "default_cosmo",
     # functions
     "blackbody",
     "default_Ak",
@@ -59,7 +61,7 @@ fAkType = T.Callable[[ArrayLike], complex]
 # Blackbody
 
 
-@u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
+# @u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
 def blackbody(frequency: u.Quantity, temperature: u.Quantity) -> u.Quantity:
     r"""Planck blackbody function.
 
@@ -74,15 +76,11 @@ def blackbody(frequency: u.Quantity, temperature: u.Quantity) -> u.Quantity:
         The blackbody in units of :math:`\frac{erg}{cm^2 sr}`
 
     """
-    # TODO undo the units shortcuts
-    frequency = frequency.to_value(u.GHz)
-    log_boltz = _GHz_h_kB_in_K * frequency / temperature.to_value(u.K)
+    log_boltz = const.h * frequency / (const.k_B * temperature)
     boltzm1 = np.expm1(log_boltz)
 
-    bb_nu = (
-        2.0 * _GHz3_hc2_2_erg_Hzssrcm2 * frequency ** 3 / boltzm1
-    ) * _bb_unit
-    return bb_nu
+    bb_nu = (2 * const.h / const.c ** 2 / u.sr) * frequency ** 3 / boltzm1
+    return bb_nu << _bb_unit
 
 
 # /def
@@ -219,14 +217,7 @@ class CosmologyDependent:
     def __init__(self, cosmo: Cosmology):
         self._cosmo: Cosmology = cosmo  # the astropy cosmology
 
-        # self.zeq: float = z_matter_radiation_equality(cosmo)[0]
-        # self.zeta0: float = self.zeta(0)
-
-        # TODO? make this a stand-alone function
-        # self.lambda0 = (
-        #     (const.c / cosmo.H0) * np.sqrt(self.zeta0 / cosmo.Om0)
-        # ) << u.Mpc
-        # self._lambda0_Mpc = self.lambda0.to_value(u.Mpc)
+        self.lambda0 = lambda_naught(cosmo) << u.Mpc
 
     # /def
 

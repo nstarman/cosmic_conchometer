@@ -6,7 +6,7 @@
 ##############################################################################
 # IMPORTS
 
-from __future__ import absolute_import
+from __future__ import absolute_import, annotations
 
 # BUILT-IN
 import pathlib
@@ -35,8 +35,10 @@ except ImportError:
 else:
     HAS_TQDM = True
 
+# -------------------------------------------------------------------
 
-class _NoOpPBar(object):
+
+class _NoOpPBar:
     """This class implements the progress bar interface but does nothing.
 
     This class is from :mod:`~emcee`.
@@ -48,17 +50,17 @@ class _NoOpPBar(object):
 
     # /def
 
-    def __enter__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+    def __enter__(self, *args: T.Any, **kwargs: T.Any) -> _NoOpPBar:
         return self
 
     # /def
 
-    def __exit__(self, *args: T.Any, **kwargs: T.Any) -> T.Any:
+    def __exit__(self, *args: T.Any, **kwargs: T.Any) -> None:
         pass
 
     # /def
 
-    def update(self, count: T.Any) -> T.Any:
+    def update(self, count: T.Any) -> None:
         pass
 
     # /def

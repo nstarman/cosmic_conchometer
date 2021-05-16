@@ -22,7 +22,7 @@ from classy import Class
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
-from cosmic_conchometer.typing import ArrayLike, ArrayLike_Callable
+from cosmic_conchometer.typing import ArrayLike, ArrayLikeCallable
 
 ##############################################################################
 # PARAMETERS
@@ -42,7 +42,7 @@ class DiffusionDistortionBase(CosmologyDependent):
     ----------
     cosmo : `~astropy.cosmology.core.Cosmology`
     class_cosmo : :class:`classy.Class`
-    AkFunc: Callable or str or None (optional, keyword-only)
+    AkFunc: Callable, str, or None (optional, keyword-only)
         The function to calculate :math:`A(\vec{k})`
 
     """
@@ -52,12 +52,12 @@ class DiffusionDistortionBase(CosmologyDependent):
         cosmo: Cosmology,
         class_cosmo: Class,
         *,
-        AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
+        AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
     ) -> None:
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO? move to superclass
 
-        self.AkFunc: ArrayLike_Callable
+        self.AkFunc: ArrayLikeCallable
         if AkFunc is None:
             self.AkFunc = default_Ak.get()
         elif isinstance(AkFunc, str) or callable(AkFunc):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Initiation Tests for :mod:`~cosmic_conchometer.diffusion_distortion.core`."""
+"""Initiation Tests for :mod:`~cosmic_conchometer.common`."""
 
 __all__ = ["Test_DiffusionDistortionBase"]
 
@@ -9,23 +9,63 @@ __all__ = ["Test_DiffusionDistortionBase"]
 # IMPORTS
 
 # THIRD PARTY
+import astropy.units as u
+import numpy as np
 import pytest
+from astropy.cosmology import Cosmology, default_cosmology
+from classy import CLASS
 
 # PROJECT-SPECIFIC
-from .utils import CLASS
-from cosmic_conchometer import diffusion_distortion
+from cosmic_conchometer import common
+from cosmic_conchometer.config import conf
 
 ##############################################################################
 # TESTS
 ##############################################################################
 
+
+def test_default_cosmo():
+    """Test `~cosmic_conchometer.common.default_cosmo`"""
+    assert isinstance(common.default_cosmo, Cosmology)
+
+    with default_cosmology.set(conf.default_cosmo):
+        assert common.default_cosmo == default_cosmology.get()
+
+
+# /def
+
 # -------------------------------------------------------------------
 
 
-class Test_DiffusionDistortionBase:
-    """Test `~cosmic_conchometer.diffusion_distortion.core.DiffusionDistortionBase`."""
+def test_blackbody():
+    """Test :func:`~cosmic_conchometer.common.blackbody`"""
+    # standard usage
+    bb = common.blackbody(10 * u.GHz, 1e5 * u.K)
+    assert bb.unit == common._bb_unit
 
-    _cls = diffusion_distortion.core.DiffusionDistortionBase
+    # some values
+    assert np.isnan(common.blackbody(0 * u.GHz, 1e5 * u.K))
+
+    assert common.blackbody(10 * u.GHz, 0 * u.K) == 0
+
+
+# /def
+
+# -------------------------------------------------------------------
+
+
+def test__Ak_unity():
+    """Test :func:`~cosmic_conchometer.common._Ak_unity`"""
+    assert common._Ak_unity() == 1.0 + 0j
+
+
+# -------------------------------------------------------------------
+
+
+class Test_CosmologyDependent:
+    """Test `~cosmic_conchometer.common.CosmologyDependent`."""
+
+    _cls = common.CosmologyDependent
 
     @classmethod
     def setup_class(cls):

@@ -19,7 +19,7 @@ from classy import Class
 
 # PROJECT-SPECIFIC
 from .core import DiffusionDistortionBase
-from cosmic_conchometer.typing import ArrayLike_Callable
+from cosmic_conchometer.typing import ArrayLikeCallable
 
 ##############################################################################
 # CODE
@@ -45,7 +45,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         cosmo: Cosmology,
         class_cosmo: Class,
         *,
-        AkFunc: T.Union[str, ArrayLike_Callable, None] = None,
+        AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
     ) -> None:
         super().__init__(
             cosmo=cosmo,

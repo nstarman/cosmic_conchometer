@@ -15,31 +15,18 @@ import numpy as np
 __all__ = [
     "ArrayLike",
     "TArrayLike",
+    "ArrayLikeCallable",
 ]
-
-##############################################################################
-# PARAMETERS
-
-NUMPY_VERSION = tuple([int(x) for x in np.version.version.split(".")])
 
 
 ##############################################################################
 # CODE
 
-# if NUMPY_VERSION > (1, 20, 0):
-#     # THIRD PARTY
-#     import numpy.typing as npt
-#
-#     ArrayLike = npt.ArrayLike
-#
-# else:
-#     ArrayLike = T.Union[float, list, tuple, np.ndarray]
 ArrayLike = T.Union[float, np.float, np.complex, np.ndarray]
 
 TArrayLike = T.TypeVar("TArrayLike", float, np.float, np.complex, np.ndarray)
 
-
-ArrayLike_Callable = T.Callable[
+ArrayLikeCallable = T.Callable[
     [ArrayLike],
     ArrayLike,
 ]
