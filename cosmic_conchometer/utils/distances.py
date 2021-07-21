@@ -21,6 +21,7 @@ import astropy.constants as const
 import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
+from astropy.cosmology import default_cosmology
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.typing import TArrayLike
@@ -54,7 +55,7 @@ TZ = T.TypeVar("TZ", float, u.Quantity)  # u.Quantity[dimensionless]
 ##############################################################################
 
 
-@u.quantity_input(returns=u.Mpc)
+# @u.quantity_input(returns=u.Mpc)
 def lambda_naught(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
     """Compute lambda0.
 
@@ -66,10 +67,22 @@ def lambda_naught(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
 
     """
     alphaobs: u.Quantity = alpha_observer(cosmo, **zeq_kw)
-    lambda0: u.Quantity = (const.c / cosmo.H0) * np.sqrt(
-        8 / (cosmo.Om0 * alphaobs),
-    )
-    return lambda0
+    lambda0: u.Quantity
+    lambda0 = (const.c / cosmo.H0) * np.sqrt(8 / (cosmo.Om0 * alphaobs))
+    return lambda0 << u.Mpc
+
+
+# /def
+
+
+def _aeq(kw: T.Dict[str, T.Any]) -> TZ:
+    if "aeq" in kw:
+        aeq = kw["aeq"]
+    elif "zeq" in kw:
+        aeq = _A_Of.z(kw["zeq"])
+    else:
+        aeq = _A_Of.matter_radiation_equality(kw["cosmo"])
+    return aeq
 
 
 # /def
@@ -116,7 +129,7 @@ def z_matter_radiation_equality(
 
     # residual function
     def f(z: TZ) -> TZ:
-        diff: TZ = cosmo.Om(z) - cosmo.Ogamma(z)
+        diff: TZ = cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z))
         return diff
 
     rest: tuple[T.Any, ...]
@@ -129,13 +142,13 @@ def z_matter_radiation_equality(
 # /def
 
 
-class z_of:
+class _Z_Of:
     """Calculate redshift from...  (time moves forward)."""
 
     @staticmethod
     def a(a: TArrayLike) -> TArrayLike:
         """Redshift from the scale factor."""
-        z: TArrayLike = (1.0 / a) - 1.0
+        z: TArrayLike = np.divide(1.0, a) - 1.0
         return z
 
     @staticmethod
@@ -146,20 +159,14 @@ class z_of:
         ----------
         alpha: array-like
         **eq : float or scalar `~astropy.units.Quantity`
-            works with keys "aeq" or "zeq"
+            works with keys "aeq" or "zeq" or "cosmo"
 
         Returns
         -------
         z : array-like or quantity-like ['dimensionless']
 
-        Raises
-        ------
-        KeyError
-            If 'eq' does not have key "aeq" nor "zeq".
-
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
-        # hardcoded a_of.z(zeq)
+        aeq: TZ = _aeq(eq)
 
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
         z: TArrayLike = (1.0 / a) - 1.0  # hardcoded z_of.a(a)
@@ -173,10 +180,10 @@ class z_of:
         ----------
         rho: array-like
         **eq : float or scalar `~astropy.units.Quantity`
-            works with keys "aeq" or "zeq"
+            works with keys "aeq" or "zeq" or "cosmo"
 
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
+        aeq: TZ = _aeq(eq)
 
         alpha: TArrayLike = 2.0 * rho ** 2 - 1.0
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
@@ -194,7 +201,10 @@ class z_of:
 
     @staticmethod
     def matter_radiation_equality(
-        cosmo: Cosmology, zmin: TZ = 1e3, zmax: TZ = 1e4, **rootkw: T.Any
+        cosmo: T.Optional[Cosmology] = None,
+        zmin: TZ = 1e3,
+        zmax: TZ = 1e4,
+        **rootkw: T.Any,
     ) -> u.Quantity:
         """Redshift at matter-radiation equality.
 
@@ -213,6 +223,9 @@ class z_of:
             The redshift at matter-radiation equality.
 
         """
+        if cosmo is None:
+            cosmo = default_cosmology.get()
+
         rootkw["full_output"] = False  # ensure output
         z_eq: u.Quantity = z_matter_radiation_equality(
             cosmo=cosmo, zmin=zmin, zmax=zmax, **rootkw
@@ -226,6 +239,7 @@ class z_of:
         return z
 
 
+z_of = _Z_Of()
 # /class
 
 
@@ -233,7 +247,7 @@ class z_of:
 # Scale factor
 
 
-class a_of:
+class _A_Of:
     """Scale factor from...  (time moves forward)."""
 
     @staticmethod
@@ -258,7 +272,7 @@ class a_of:
             works with keys "aeq" or "zeq"
 
         """
-        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
+        aeq: TZ = _aeq(eq)
 
         alpha: TArrayLike = 2.0 * rho ** 2 - 1.0
         a: TArrayLike = aeq * alpha  # hardcoded a_of.alpha(alpha, aeq=aeq)
@@ -274,9 +288,15 @@ class a_of:
 
     @staticmethod
     def matter_radiation_equality(
-        cosmo: Cosmology, amin: float = 0.0, amax: float = 0.1, **rootkw: T.Any
+        cosmo: T.Optional[Cosmology] = None,
+        amin: float = 0.0,
+        amax: float = 0.1,
+        **rootkw: T.Any,
     ) -> u.Quantity:
         """Scale factor at matter-radiation equality."""
+        if cosmo is None:
+            cosmo = default_cosmology.get()
+
         zeq: u.Quantity = z_matter_radiation_equality(
             cosmo=cosmo, zmin=z_of.a(amin), zmax=z_of.a(amax), **rootkw
         )
@@ -289,6 +309,7 @@ class a_of:
         return 1.0 << u.one
 
 
+a_of = _A_Of()
 # class
 
 
@@ -320,20 +341,20 @@ def alpha_observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
 # /def
 
 
-class alpha_of:
+class _Alpha_Of:
     """Calculate alpha from...  (time moves forward)."""
 
     @staticmethod
     def a(a: TArrayLike, **eq: TZ) -> TArrayLike:
         """alpha from the scale factor."""
-        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
+        aeq: TZ = _aeq(eq)
         alpha: TArrayLike = a / aeq
         return alpha
 
     @staticmethod
     def z(z: TArrayLike, **eq: TZ) -> TArrayLike:
         """alpha from the redshift."""
-        aeq: TZ = eq.get("aeq", 1.0 / (eq["zeq"] + 1.0))
+        aeq: TZ = _aeq(eq)
         a: TArrayLike = 1.0 / (z + 1.0)
         alpha: TArrayLike = a / aeq
         return alpha
@@ -369,6 +390,7 @@ class alpha_of:
         return alpha_observer(cosmo, **zeq_kw)
 
 
+alpha_of = _Alpha_Of()
 # /class
 
 
@@ -376,18 +398,19 @@ class alpha_of:
 # rho
 
 
-class rho_of:
+class _Rho_Of:
     """Calculate rho from...  (time moves forward)."""
 
     @staticmethod
-    def z(z: TArrayLike, zeq: float) -> TArrayLike:
+    def z(z: TArrayLike, **eq: TZ) -> TArrayLike:
         """rho from the redshift."""
-        rho: TArrayLike = np.sqrt((1.0 + alpha_of.z(z, zeq=zeq)) / 2.0)
+        rho: TArrayLike = np.sqrt((1.0 + alpha_of.z(z, **eq)) / 2.0)
         return rho
 
     @staticmethod
-    def a(a: TArrayLike, aeq: float) -> TArrayLike:
+    def a(a: TArrayLike, **eq: float) -> TArrayLike:
         """rho from the scale factor."""
+        aeq: TZ = _aeq(eq)
         rho: TArrayLike = np.sqrt((1.0 + a / aeq) / 2.0)
         return rho
 
@@ -418,6 +441,7 @@ class rho_of:
         return rho
 
 
+rho_of = _Rho_Of()
 # /class
 
 ##############################################################################

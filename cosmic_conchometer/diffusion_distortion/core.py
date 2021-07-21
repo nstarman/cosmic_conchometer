@@ -18,11 +18,12 @@ from abc import abstractmethod
 import astropy.units as u
 import numpy as np
 from astropy.cosmology.core import Cosmology
-from classy import Class
+from classy import Class as CLASS
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
 from cosmic_conchometer.typing import ArrayLike, ArrayLikeCallable
+from cosmic_conchometer.utils import distances
 
 ##############################################################################
 # PARAMETERS
@@ -50,9 +51,10 @@ class DiffusionDistortionBase(CosmologyDependent):
     def __init__(
         self,
         cosmo: Cosmology,
-        class_cosmo: Class,
+        class_cosmo: CLASS,
         *,
         AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
+        **kwargs
     ) -> None:
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO? move to superclass
@@ -66,19 +68,26 @@ class DiffusionDistortionBase(CosmologyDependent):
         else:
             raise TypeError("AkFunc must be <None, str, callable>.")
 
-        # # calculated quantities
-        # # TODO methods to set zeta array?
-        # thermo = class_cosmo.get_thermodynamics()
-        # self._zeta_arr = self.zeta(thermo["z"])
-        # self._PgamBar_arr = thermo["exp(-kappa)"]
-        # self._GgamBar_arr = thermo["g [Mpc^-1]"]
+    # /def
 
-        #
-        # # FIXME! units
-        # self.PgamBarCL: IUSType = IUS(self._zeta_arr, self._PgamBar_arr)
-        # self.GgamBarCL: IUSType = IUS(self._zeta_arr, self._GgamBar_arr)
-        #
-        # self.PgamBarCL0: float = self.PgamBarCL(self.zeta0)
+    @staticmethod
+    def set_AkFunc(value: T.Union[None, str, T.Callable]) -> T.Callable:
+        """Set the default function used in A(k).
+
+        Can be used as a contextmanager, same as `~.default_Ak`.
+
+        Parameters
+        ----------
+        value
+
+        Returns
+        -------
+        `~astropy.utils.state.ScienceStateContext`
+            Output of :meth:`~.default_Ak.set`
+
+        """
+        self.Akfunc: T.Callable = default_Ak.set(value)
+        return self.Akfunc
 
     # /def
 

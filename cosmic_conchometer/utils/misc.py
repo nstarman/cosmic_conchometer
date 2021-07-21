@@ -29,5 +29,15 @@ def flatten_dict(d: dict) -> dict:
 
 # /def
 
+# -------------------------------------------------------------------
+
+
+def kronecker_evaluate(condition, value):
+    if condition:
+        return value
+    else:
+        return 0
+
+
 ##############################################################################
 # END

@@ -17,6 +17,7 @@ import numpy as np
 from astropy.cosmology import default_cosmology
 from astropy.cosmology.core import Cosmology
 from astropy.utils.state import ScienceState
+from astropy.utils.metadata import MetaData
 
 # PROJECT-SPECIFIC
 from .config import conf
@@ -124,38 +125,38 @@ class default_Ak(ScienceState):
     """Registry of A(k) functions."""
 
     @classmethod
-    def get_from_str(cls, name: str) -> T.Callable:
+    def get_from_str(cls, name: str) -> fAkType:
         """Get Ak function from string.
 
         Parameters
         ----------
         name : str
-            Name of Ak function in registry
+            Name of Ak function in registry.
 
         Returns
         -------
-        Callable
-            Ak function
+        callable[[array-like], complex]
+            Ak function.
 
         """
-        Akfunc = cls._registry[name]  # todo copy function?
+        Akfunc = cls._registry[name]
         return Akfunc
 
     # /def
 
     @classmethod
-    def validate(cls, value: T.Union[None, str, T.Callable]) -> T.Callable:
+    def validate(cls, value: T.Union[None, str, T.Callable]) -> fAkType:
         """Validate Ak function.
 
         Parameters
         ----------
         name : str
-            Name of Ak function in registry
+            Name of Ak function in registry.
 
         Returns
         -------
-        callable
-            Ak function
+        callable[[array-like], complex]
+            Ak function.
 
         """
         if value is None:
@@ -177,7 +178,7 @@ class default_Ak(ScienceState):
     def register(
         cls,
         name: str,
-        AkFunc: T.Callable,
+        AkFunc: fAkType,
         overwrite: bool = False,
     ) -> None:
         """Register Ak function.
@@ -214,10 +215,13 @@ class CosmologyDependent:
 
     """
 
-    def __init__(self, cosmo: Cosmology):
-        self._cosmo: Cosmology = cosmo  # the astropy cosmology
+    meta = MetaData()
 
-        self.lambda0 = lambda_naught(cosmo) << u.Mpc
+    def __init__(self, cosmo: Cosmology, meta=None):
+        self._cosmo: Cosmology = cosmo  # the astropy cosmology
+        self.meta.update(meta or {})
+
+        self._lambda0 = lambda_naught(cosmo) << u.Mpc
 
     # /def
 
@@ -234,138 +238,18 @@ class CosmologyDependent:
 
     # /def
 
+    @property
+    def lambda0(self) -> u.Quantity:
+        return self._lambda0
+
     # ===============================================================
     # stuff
-
-    # ------------------------------
-    # Redshifts
-
-    #     def zeta(
-    #         self,
-    #         z: ArrayLike,
-    #     ) -> ArrayLike:
-    #         """Zeta(z).
-    #
-    #         Parameters
-    #         ----------
-    #         z : float or array
-    #
-    #         Returns
-    #         -------
-    #         zeta : float or array
-    #             same as `z` type.
-    #
-    #         """
-    #         return _zeta_of_z(z, self.zeq)
-    #
-    #     # /def
-    #
-    #     def z_of_zeta(
-    #         self,
-    #         zeta: ArrayLike,
-    #     ) -> ArrayLike:
-    #         """z(zeta).
-    #
-    #         Parameters
-    #         ----------
-    #         zeta : float or array
-    #
-    #         Returns
-    #         -------
-    #         z : float or array
-    #             same as `zeta` type.
-    #
-    #         """
-    #         return _z_of_zeta(zeta, self.zeq)  # TODO z_of_zeta(function)
-    #
-    #     # /def
-
-    # ------------------------------
-    # Distances
-
-    #     def _rMag_Mpc(
-    #         self,
-    #         zeta1: T.Union[float, np.array],
-    #         zeta2: T.Union[float, np.array],
-    #     ) -> T.Union[float, np.array]:
-    #         """Magnitude of r.
-    #
-    #         Parameters
-    #         ----------
-    #         zeta1, zeta2 : float or array
-    #
-    #         Returns
-    #         -------
-    #         float or array
-    #             float unless `zeta1` or `zeta2` is `~numpy.array`
-    #
-    #         """
-    #         return (
-    #             2
-    #             * self._lambda0_Mpc
-    #             * (np.sqrt((zeta2 + 1.0) / zeta2) - np.sqrt((zeta1 + 1.0) / zeta1))
-    #         )
-    #
-    #     # /def
-    #
-    #     def rMag(
-    #         self,
-    #         zeta1: T.Union[float, np.array],
-    #         zeta2: T.Union[float, np.array],
-    #     ) -> u.Quantity:
-    #         """Magnitude of r.
-    #
-    #         Parameters
-    #         ----------
-    #         zeta1, zeta2 : float or array
-    #
-    #         Returns
-    #         -------
-    #         float or array
-    #             float unless `zeta1` or `zeta2` is `~numpy.array`
-    #
-    #         """
-    #         return self._rMag_Mpc(zeta1, zeta2) * u.Mpc
-    #
-    #     # /def
-
-    # # @u.quantity_input(thetaES=u.deg, phiES=u.deg)  # not used
-    # @staticmethod
-    # def rEShat(
-    #     thetaES: T.Union[float, np.ndarray, u.Quantity],
-    #     phiES: T.Union[float, np.ndarray, u.Quantity],
-    # ) -> np.ndarray:
-    #     """Direction from emission to scatter.
-
-    #     Parameters
-    #     ----------
-    #     thetaES, phiES : float or array or `~astropy.units.Quantity`
-    #         In degrees.
-
-    #         .. todo:: Explain theta and phi coordinates
-
-    #     Returns
-    #     -------
-    #     array
-    #         (3,) array of direction from emission to scatter.
-    #         Unit magnitude.
-
-    #     """
-    #     return np.array(
-    #         [
-    #             np.sin(thetaES) * np.cos(phiES),
-    #             np.sin(thetaES) * np.sin(phiES),
-    #             np.cos(thetaES),
-    #         ],
-    #     )
-
-    # # /def
 
     @u.quantity_input(freq="frequency", temp=u.K, returns=_bb_unit)
     def blackbody(
         self,
         frequency: u.Quantity,
-        temperature: u.Quantity,
+        # temperature: u.Quantity,
     ) -> u.Quantity:
         r"""Blackbody spectrum.
 
@@ -382,32 +266,8 @@ class CosmologyDependent:
             The blackbody in units of :math:`\frac{erg}{cm^2 sr}`
 
         """
-        bb: u.Quantity = blackbody(
-            frequency,
-            temperature if temperature is not None else self.Tcmb0,
-        )
+        bb: u.Quantity = blackbody(frequency, self.Tcmb0)
         return bb
-
-    # /def
-
-    @staticmethod
-    def set_AkFunc(value: T.Union[None, str, T.Callable]) -> T.Callable:
-        """Set the default function used in A(k).
-
-        Can be used as a contextmanager, same as `~.default_Ak`.
-
-        Parameters
-        ----------
-        value
-
-        Returns
-        -------
-        `~astropy.utils.state.ScienceStateContext`
-            Output of :meth:`~.default_Ak.set`
-
-        """
-        Akfunc: T.Callable = default_Ak.set(value)
-        return Akfunc
 
     # /def
 
