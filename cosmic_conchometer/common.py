@@ -9,6 +9,7 @@ from __future__ import annotations
 
 # BUILT-IN
 import typing as T
+from abc import ABCMeta
 
 # THIRD PARTY
 import astropy.constants as const
@@ -16,8 +17,8 @@ import astropy.units as u
 import numpy as np
 from astropy.cosmology import default_cosmology
 from astropy.cosmology.core import Cosmology
-from astropy.utils.state import ScienceState
 from astropy.utils.metadata import MetaData
+from astropy.utils.state import ScienceState
 
 # PROJECT-SPECIFIC
 from .config import conf
@@ -206,7 +207,7 @@ class default_Ak(ScienceState):
 #####################################################################
 
 
-class CosmologyDependent:
+class CosmologyDependent(metaclass=ABCMeta):
     """Class for coordinating cosmology-dependent calculations.
 
     Parameters
