@@ -20,8 +20,8 @@ import typing as T
 import astropy.constants as const
 import astropy.units as u
 import numpy as np
-from astropy.cosmology.core import Cosmology
 from astropy.cosmology import default_cosmology
+from astropy.cosmology.core import Cosmology
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.typing import TArrayLike
@@ -40,12 +40,12 @@ __all__ = [
 # PARAMETERS
 
 # alpha
-alpha0: u.Quantity = 0 << u.one
-alphaeq: u.Quantity = 1 << u.one
+alpha0: u.Quantity = 0
+alphaeq: u.Quantity = 1
 
 # rho
-rho0: u.Quantity = 1 / np.sqrt(2) << u.one
-rhoeq: u.Quantity = 1 << u.one
+rho0: u.Quantity = 1 / np.sqrt(2)
+rhoeq: u.Quantity = 1
 
 # static types
 TZ = T.TypeVar("TZ", float, u.Quantity)  # u.Quantity[dimensionless]
@@ -134,7 +134,7 @@ def z_matter_radiation_equality(
 
     rest: tuple[T.Any, ...]
     zeq, *rest = brentq(f, zmin, zmax, full_output=True, **rootkw)
-    z_eq: u.Quantity = zeq << u.one
+    z_eq: u.Quantity = zeq
 
     return z_eq if not full_output else (z_eq, rest)
 
@@ -196,7 +196,7 @@ class _Z_Of:
     @property
     def naught(self) -> u.Quantity:
         """Redshift at the beginning of time."""
-        z: u.Quantity = np.inf << u.one
+        z: u.Quantity = np.inf
         return z
 
     @staticmethod
@@ -235,7 +235,7 @@ class _Z_Of:
     @property
     def observer(self) -> u.Quantity:  # u.Quantity['dimensionless']
         """Redshift at our location."""
-        z = 0.0 << u.one
+        z = 0.0
         return z
 
 
@@ -284,7 +284,7 @@ class _A_Of:
     @property
     def naught(self) -> u.Quantity:
         """Scale factor at the beginning of time."""
-        return 0.0 << u.one
+        return 0.0
 
     @staticmethod
     def matter_radiation_equality(
@@ -306,7 +306,7 @@ class _A_Of:
     @property
     def observer(self) -> u.Quantity:
         """Scale factor at our location."""
-        return 1.0 << u.one
+        return 1.0
 
 
 a_of = _A_Of()
@@ -443,12 +443,6 @@ class _Rho_Of:
 
 rho_of = _Rho_Of()
 # /class
-
-##############################################################################
-# r
-
-# # TODO! less sure of this one. is it comonent dependent?
-# class r_of:
 
 
 ##############################################################################
