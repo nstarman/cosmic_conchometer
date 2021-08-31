@@ -10,31 +10,55 @@ __all__ = ["SpectralDistortion"]
 
 # BUILT-IN
 import typing as T
-from functools import cached_property
 
 # THIRD PARTY
 import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from classy import Class as CLASS
-
-from scipy.special import binom, factorial
-from scipy.interpolate import InterpolatedUnivariateSpline, CubicSpline
+from numpy import absolute, arctan2, array, nan_to_num, sqrt
+from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+from scipy.signal import find_peaks
+from scipy.special import xlogy
 
 # PROJECT-SPECIFIC
 from .core import DiffusionDistortionBase
 from cosmic_conchometer.typing import ArrayLikeCallable
 from cosmic_conchometer.utils import distances
 
-
 ##############################################################################
 # PARAMETERS
 
 I = int
-rho0 = distances.rho0.value
+rho0 = distances.rho0
 
 ##############################################################################
 # CODE
+##############################################################################
+
+
+def rho2_of_rho1(rho1, spll, sprp, maxrhovalid):
+    """:math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`
+
+    TODO! move to utils
+
+    Parameters
+    ----------
+    rho1 : float
+    spll, sprp : float
+
+    Returns
+    -------
+    float
+    """
+    return rho1 - sqrt((spll + rho1 - maxrhovalid) ** 2 + sprp ** 2)
+
+
+# /def
+
+
 ##############################################################################
 
 
@@ -46,9 +70,7 @@ class SpectralDistortion(DiffusionDistortionBase):
     cosmo : :class:`~astropy.cosmology.core.Cosmology`
         The cosmology
     class_cosmo : :class:`~classy.Class`
-    GgamBarCL : Callable
-    PgamBarCL : Callable
-    AkFunc: Callable or str or None (optional)
+    AkFunc: Callable or str or None (optional, keyword-only)
 
     """
 
@@ -56,9 +78,6 @@ class SpectralDistortion(DiffusionDistortionBase):
         self,
         cosmo: Cosmology,
         class_cosmo: CLASS,
-        # TODO! temporary
-        C1F2,
-        C2F2,
         *,
         AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
         **kwargs,
@@ -67,89 +86,22 @@ class SpectralDistortion(DiffusionDistortionBase):
             cosmo=cosmo, class_cosmo=class_cosmo, AkFunc=AkFunc, **kwargs
         )
 
-        self.nmax = kwargs.get("nmax", 50)
-
-        # ---------------------------------------
-        # C-functions
-
-        self.C1F2 = C1F2
-        self.C2F2 = C2F2
-
         # ---------------------------------------
         # splines & related
 
-        # get calculated quantities from CLASS
-        thermo = class_cosmo.get_thermodynamics()
-        z = thermo["z"][::-1]
-        dkappadtau = thermo["kappa' [Mpc^-1]"] << 1 / u.Mpc  # g / P
-        gbarCL = thermo["g [Mpc^-1]"][::-1] << 1 / u.Mpc
+        rho = self.class_rho
 
-        # transform z to rho
-        zeq = distances.z_of.matter_radiation_equality(cosmo=cosmo)
-        rho = distances.rho_of.z(z, zeq=zeq)
-        rho0x = rho - rho0
+        self._spl_PbarCL = IUS(rho, self.class_P, ext=2)
+        self._spl_dk_dt = IUS(rho, self.class_dk_dt, ext=2)
+        self._spl_gbarCL = IUS(rho, self.class_g, ext=1)  # ext 1 makes stuff 0
 
-        # get the spline bounding box.
-        # it can't be larger than the endpoints of the data
-        bboxlimit = (min(rho0x).value, max(rho0x).value)
-        bbox = kwargs.get("bbox", bboxlimit)
-        if bbox[0] < bboxlimit[0] or bboxlimit[-1] < bbox[-1]:
-            raise ValueError(f"bbox must be within {bboxlimit}")
-
-        self._Nknots = Nknots = kwargs.get("Nknots", int(np.diff(bbox)))
-        self._Delta = Delta = (bbox[-1] - bbox[0]) / (Nknots - 1)
-        self._rho0x_knots = np.arange(bbox[0], bbox[-1] + Delta, Delta)
-
-        # need to trim the data to fit in the bounding box
-        inbbox = (bbox[0] <= rho0x) & (rho0x <= bbox[-1])
-        rho = rho[inbbox]
-        rho0x = rho0x[inbbox]
-        gbarCL = gbarCL[inbbox]
-        dkappadtau = dkappadtau[inbbox]
-
-        # g-spline
-        # done in 2 steps: 1) preparatory spline,
-        #                  2) Cubic spline with predefined knot points
-        prep_gspline = InterpolatedUnivariateSpline(
-            rho0x.to_value(u.one),
-            (self.lambda0 * gbarCL).to_value(u.one),
-            ext=3,  # constant at the boundary, for evaluating at bbox[-1]
-            bbox=bbox,
-        )
-        self._GgamBarCL_spl = CubicSpline(
-            self.rho0x_knots, prep_gspline(self.rho0x_knots), extrapolate=False
-        )
-
-        # g/P-spline
-        # done in 2 steps: 1) preparatory spline,
-        #                  2) Cubic spline with predefined knot points
-        prep_S_spl = InterpolatedUnivariateSpline(
-            rho0x.to_value(u.one),
-            (self.lambda0 * dkappadtau / rho).to_value(u.one),
-            ext=3,  # constant at the boundary, for evaluating at bbox[-1]
-            bbox=bbox,
-        )
-        self._S_spl = CubicSpline(
-            self.rho0x_knots, prep_S_spl(self.rho0x_knots), extrapolate=False
-        )
+        # derivatives wrt rho  # TODO! plot out to make sure they look good
+        self._spl_d2k_dtdrho = self._spl_dk_dt.derivative(n=1)
+        self._spl_d3k_dtdrho2 = self._spl_dk_dt.derivative(n=2)
+        self._spl_d1gbarCL = self._spl_gbarCL.derivative(n=1)
+        self._spl_d2gbarCL = self._spl_gbarCL.derivative(n=2)
 
     # /def
-
-    @property
-    def Nknots(self):
-        return self._Nknots
-
-    @property
-    def Delta(self):
-        return self._Delta
-
-    @property
-    def rho0x_knots(self):
-        return self._rho0x_knots
-
-    @cached_property
-    def rho0x_bbox(self):
-        return (self._rho0x_knots[0], self._rho0x_knots[-1])
 
     # ===============================================================
 
@@ -188,230 +140,193 @@ class SpectralDistortion(DiffusionDistortionBase):
         """
         raise NotImplementedError("TODO!")
 
-    #         reduced_energy = freq * const.h / (const.k_B * self.Tcmb0) << u.one
-    #
-    #         Ak = self.AkFunc(k)
-    #         if real_AK is True:
-    #             Ak = np.real(Ak)
-    #         elif real_AK is False:
-    #             Ak = np.imaginary(Ak)
-    #
-    #         prefactor = (
-    #             (reduced_energy / np.expm1(-reduced_energy))
-    #             * self.lambda0 ** 2
-    #             * Ak
-    #             / (16 * np.pi * self.PgamBarCL0)
-    #         )
-    #
-    #         return prefactor
+    # /def
+
+    def boundary_terms(self, rho1: float, spll: float, sprp: float) -> float:
+        """
+
+        Parameters
+        ----------
+        rho1 : float
+        spll, sprp : float
+
+        Returns
+        -------
+        float
+        """
+        delta = spll + rho1 - self.maxrhovalid
+        s2 = delta ** 2 + sprp ** 2
+        s = sqrt(s2)
+        rho2 = rho1 - s
+        gbarCL = self._spl_gbarCL(rho2)
+        dkdt = self._spl_dk_dt(rho1)
+
+        U = dkdt * gbarCL
+        s2V = -nan_to_num(sprp ** 2 * delta / s2) + 1.5 * sprp * arctan2(
+            delta, sprp
+        )
+
+        sUp = (sprp * self._spl_d2k_dtdrho(rho1) * gbarCL) + (
+            dkdt
+            * self._spl_d1gbarCL(rho2)
+            * (sprp - nan_to_num(sprp * delta / s))
+        )
+        sW = 1.5 * delta * arctan2(delta, sprp) - xlogy(sprp, s2)
+
+        return U * s2V - sUp * sW
 
     # /def
 
-    # ===============================================================
-
-    def _l_sum(self) -> np.ndarray:  # TODO! descriptive name
-        raise NotImplementedError("TODO!")
-
-    def _i_sum(self) -> np.ndarray:  # TODO! descriptive name
-        raise NotImplementedError("TODO!")
-
-    # ----------------------------------------------------------
-
-    def _C1F2_difference(
-        self, bD: float, i_rhoES: I, *, n, p, q, v, m
+    def integrand(
+        self, rho1: float, spll: float, sprp: float, abs: bool = False
     ) -> float:
-        """Difference between C-1F2s.
+        """
 
         Parameters
         ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        n, p, q, v, m : int
-            Indices. # TODO! explanation
+        rho1 : float
+        spll, sprp : float
+        abs : bool
+            Whether to take the absolute value
 
+        Returns
+        -------
+        float
         """
-        # t1 : coefficient for 1st C1F2
-        t10 = (p + q + 1) * 1j * self.Delta if n != (p + q + v + 1) else 0
-        t11 = rho0 * bD
-        C1 = (t10 + t11) * self.C1F2(bD, i_rhoES, v, m)
+        delta = spll + rho1 - self.maxrhovalid
+        s2 = delta ** 2 + sprp ** 2
+        s = sqrt(s2)
+        rho2 = rho1 - s
+        d1gbarCL_val = self._spl_d1gbarCL(rho2)
 
-        # t2 : coefficient for 2nd C1F2
-        C2 = bD * (i_rhoES + 1) * self.C1F2(bD, i_rhoES, v + 1, m)
-
-        return C1 - C2
-
-    def _C1F2_nsummand(
-        self, bD: float, i_rhoES: I, i_rho0S: I, *, n, p, q, v, m
-    ) -> float:
-        """C1F2-difference summand.
-
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        n, p, q, v, m : int
-            Indices. # TODO! explanation
-
-        """
-        t1 = factorial(m) * factorial(p + q) / factorial(n)
-        t2 = -1j * np.power(-1j * bD, n - (p + q + v + 2))
-        t3 = np.power(i_rho0S + 1, n - v) * np.power(i_rhoES + 1, v)
-        t4 = t1 * t2 * t3
-
-        return t4 * self._C1F2_difference(bD, i_rhoES, n=n, p=p, q=q, v=v, m=m)
-
-    def _C1F2_nsum(self, bD: float, i_rhoES: I, i_rho0S: I, *, p, q, v, m):
-        """C1F2-difference summand.
-
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        p, q, v, m : int
-            Indices. # TODO! explanation
-
-        """
-        return np.sum(
-            self._C1F2_nsummand(bD, i_rhoES, i_rho0S, n=n, p=p, q=q, v=v, m=m)
-            for n in range(p + q + v + 1, self.nmax + 1)
-        )
-
-    def _C1F2_vsummand(self, bD: float, i_rhoES: I, i_rho0S: I, *, p, q, v, m):
-        """C1F2-difference summand.
-
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        p, q, v, m : int
-            Indices. # TODO! explanation
-
-        """
-        return (
-            binom(v - m, v - m - q)
-            * np.power(self.Delta, m + p + q + v + 2)
-            * self._C1F2_nsum(bD, i_rhoES, i_rho0S, p=p, q=q, v=v, m=m)
-        )
-
-    def _C1F2_vsum(self, bD: float, i_rhoES: I, i_rho0S: I, *, p, q, m):
-        """C1F2-difference summand.
-
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        p, q, m : int
-            Indices. # TODO! explanation
-
-        """
-        return np.sum(
-            self._C1F2_vsummand(bD, i_rhoES, i_rho0S, p=p, q=q, m=m)
-            for v in range(m + q, m + 3 + 1)
-        )
-
-    # TODO!! this is the wrong order for Eq. 127
-
-    def _C1F2_pqsum(self, bD: float, i_rhoES: I, i_rho0S: I, *, m):
-        """C1F2-difference summand.
-
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        m : int
-            Indices. # TODO! explanation
-
-        """
-        return np.sum(
-            np.sum(
-                self._C1F2_vsum(bD, i_rhoES, i_rho0S, p=p, q=q, m=m)
-                for p in range(0, 3 + 1)
+        sUpp = (
+            sprp * self._spl_d3k_dtdrho2(rho1) * self._spl_gbarCL(rho2)
+            + 2
+            * self._spl_d2k_dtdrho(rho1)
+            * d1gbarCL_val
+            * (sprp - nan_to_num((sprp * delta) / s))
+            + self._spl_dk_dt(rho1)
+            * (
+                self._spl_d2gbarCL(rho2)
+                * (sqrt(sprp) - nan_to_num((sqrt(sprp) * delta) / s)) ** 2
+                - d1gbarCL_val * nan_to_num(sprp / s) ** 3
             )
-            for q in range(0, 3 + 1)
         )
+        sW = 1.5 * delta * arctan2(delta, sprp) - xlogy(sprp, s2)
 
-    def _C1F2_msummand(self, bD: float, i_rhoES: I, i_rho0S: I, *, m):
-        """C1F2-difference summand.
+        return absolute(sUpp * sW) if abs else sUpp * sW
 
-        Parameters
-        ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
-        m : int
-            Indices. # TODO! explanation
+    # /def
 
-        """
-        return (
-            np.power(k * self.lambda0 * np.sin(thetakS), 2 * m)
-            / np.power(2, m)
-            / (2 * m + 3)
-            / np.square(factorial(m))
-        ) * _C1F2_pqsum(bD, i_rhoES, i_rho0S, m=m)
-
-    def _C1F2_msum(
+    def integral(
         self,
+        spll: float,
+        sprp: float,
+        bounds: T.Optional[T.Tuple[float, float]] = None,
+        *,
+        peakskw: T.Optional[T.Dict[str, T.Any]] = None,
+        integkw: T.Optional[T.Dict[str, T.Any]] = None,
+    ) -> T.Tuple[float, float, float, np.ndarray]:
+        bounds = self.rhovalid if bounds is None else bounds
+
+        x = self.class_rho[
+            (bounds[0] <= self.class_rho) & (self.class_rho <= bounds[1])
+        ]
+        vals = self.integrand(x, spll, sprp, abs=True)
+        pospeaks, posprops = find_peaks(vals, **(peakskw or {}))
+        negpeaks, negprops = find_peaks(-vals, **(peakskw or {}))
+
+        peaks = np.unique(
+            np.concatenate(
+                (
+                    [bounds[0]],
+                    self.class_rho[pospeaks],
+                    self.class_rho[negpeaks],
+                    [bounds[1]],
+                )
+            )
+        )
+        peaks.sort()  # in-place
+
+        # TODO! identify which intervals are complaining
+        ress, _ = np.array(
+            [
+                integ.quad(
+                    self.integrand,
+                    lb,
+                    ub,
+                    args=(spll, sprp, False),
+                    full_output=False,
+                    **(integkw or {}),
+                )
+                for (lb, ub) in zip(peaks[:-1], peaks[1:])
+            ]
+        ).T
+
+        absress, errs = np.array(
+            [
+                integ.quad(
+                    self.integrand,
+                    lb,
+                    ub,
+                    args=(spll, sprp, True),
+                    full_output=False,
+                    **(integkw or {}),
+                )
+                for (lb, ub) in zip(peaks[:-1], peaks[1:])
+            ]
+        ).T
+
+        res = ress.sum()
+        err = np.sqrt(np.sum(np.square(errs)))
+        rel_err = nan_to_num(err / absress.sum(), nan=0)
+
+        return res, err, rel_err, peaks
+
+    # /def
+
+    def sprpP(
+        self,
+        spll: float,
+        sprp: float,
+        bounds: T.Optional[T.Tuple[float, float]] = None,
+        *,
+        peakskw: T.Optional[T.Dict[str, T.Any]] = None,
+        integkw: T.Optional[T.Dict[str, T.Any]] = None,
     ):
-        """C1F2-difference summand.
+        """
 
         Parameters
         ----------
-        bD : float
-            :math:`\beta\Delta`
-        i_rhoES : int
-            :math:`\rho_{ES}` knot index.
+        spll, sprp : float
+        bounds : tuple[float, float] or None, optional
+            The bounds of integration.
+        **integkw
+            For `scipy.integrate.quad`
+
+        Returns
+        -------
+        s⟂P(s∥, s⟂) : float
+        rel_err : float
+            The relative error.
 
         """
-        return np.sum(
-            self._C1F2_msummand(bD, i_rhoES, i_rho0S, m=m)
-            for m in range(0, self.mmax + 1)
+        prefactor = (
+            3 * self.lambda0 ** 2 / (8 * self._spl_PbarCL(self.maxrhovalid))
         )
 
-    # def _C1F2_prefactor(self):
-    #     self.Pspline(i) - self.Pspline(i + 1) * self.gspline(i - l)
+        # boundary terms
+        bounds = self.rhovalid if bounds is None else bounds
+        ub = self.boundary_terms(bounds[-1], spll, sprp)
+        lb = self.boundary_terms(bounds[0], spll, sprp)
 
-    # ------------------------------------------------------------
+        integral, err, rel_err, _ = self.integral(
+            spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
+        )
 
-    #     def _C2F2_difference(self, bD, l, n, p, q, v, i):
-    #         """Difference between C-nogammas."""
-    #         t0 = np.power(i-l, n-v) * np.power(l+1, v)
-    #
-    #         t10 = (p + q + 1) * 1j * self.Delta if n != (p + q + v + 1) else 0
-    #         t11 = self.rho0 * bD
-    #         t1 = t10 + t11
-    #
-    #         # is it upper-inclusive?
-    #         t2Cs = (
-    #             self._C2F2_difference_in_sum(bD, l=l, n=n, p=p, q=q, v=v, i=i)
-    #             for r in range(v+1, n+1)
-    #         )
-    #
-    #         t3 = bD * np.power(l + 1, n+1)
-    #
-    #         return t0 * t1 * self.C2F2(bD, l, v, m) - np.sum(t2Cs) * t3 * self.C2F2(bD, l, n+1, m)
-    #
-    #     def _C2F2_difference_in_sum(self, bD, l, n, p, q, v, i):
-    #         t10 = (p + q + 1) * 1j * self.Delta if n != (p + q + v + 1) else 0
-    #         t11 = self.rho0 * bD
-    #         t1 = t10 + t11
-    #
-    #         t2 = binom(n-v, r-v) * np.power(i-l, n-r) * np.power(l+1, r) *
-    #         (t1 - (r-v) * (i - l) / (n + 1 - r))
-    #
-    #         return t2 * self.C2F2(bD, l, r, m)
+        return prefactor * (ub - lb + integral), prefactor * err, rel_err
+
+    # /def
 
     # ===============================================================
     # Convenience Methods
@@ -460,50 +375,97 @@ class SpectralDistortion(DiffusionDistortionBase):
 
     #######################################################
 
+    def plot_rho2(self, rho1, splls, sprps):
+        Splls, Sprps = np.meshgrid(splls, sprps)
+        rhov = self.rhovalid[-1]
 
-#     def plot_PgamBarCL(self, plot_times: bool = False) -> None:
-#         # THIRD PARTY
-#         import matplotlib.pyplot as plt
-#
-#         plt.scatter(
-#             self._zeta_arr,
-#             self.PgamBarCL(self._zeta_arr),
-#             label=r"$\bar{P}_{\gamma}^{\mathrm{CL}}(\zeta)$",
-#         )
-#
-#         # some interesting times
-#         if plot_times:
-#             plt.axvline(self.zeta0, label=r"$\zeta_0$", c="k", ls="-")
-#             plt.axvline(1, label=r"$\zeta_{\mathrm{eq}}$", c="k", ls="--")
-#             plt.axvline(self.zeta(1100), label=r"$\zeta_{R}$", c="k", ls=":")
-#
-#         plt.legend()
-#
-#         # return fig
-#
-#     # /def
-#
-#     def plot_GgamBarCL(self, plot_times: bool = False) -> None:
-#         # THIRD PARTY
-#         import matplotlib.pyplot as plt
-#
-#         plt.scatter(
-#             self._zeta_arr,
-#             self.GgamBarCL(self._zeta_arr),
-#             label=r"$\bar{P}_{\gamma}^{\mathrm{CL}}(\zeta)$",
-#         )
-#
-#         # some interesting times
-#         if plot_times:
-#             plt.axvline(self.zeta0, label=r"$\zeta_0$", c="k", ls="-")
-#             plt.axvline(1, label=r"$\zeta_{\mathrm{eq}}$", c="k", ls="--")
-#             plt.axvline(self.zeta(1100), label=r"$\zeta_{R}$", c="k", ls=":")
-#
-#         plt.legend()
-#
-#         # return fig
-#
-#     # /def
+        fig, ax = plt.subplots(figsize=(7, 5))
+        scat = ax.scatter(
+            Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30
+        )
+        ax.axvline(
+            rhov - self.rho_recombination,
+            c="k",
+            label=r"$\rho_{valid}^{\max}-\rho_{R}$",
+        )
+        plt.colorbar(scat)
+
+        ax.set_title(
+            r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$"
+        )
+        ax.set_xlabel(r"$s_{||}$", fontsize=15)
+        ax.set_ylabel(r"$s_{\perp}$", fontsize=15)
+        ax.legend()
+
+        return fig
+
+    # /def
+
+    def plot_integrand_at(
+        self,
+        spll: float,
+        sprp: float,
+        *,
+        integbounds: T.Optional[T.Tuple[float, float]] = None,
+        peakskw: T.Optional[T.Dict[str, T.Any]] = None,
+        integkw: T.Optional[T.Dict[str, T.Any]] = None,
+    ):
+        # THIRD PARTY
+        from matplotlib import gridspec
+
+        fig = plt.figure(figsize=(12, 4))
+        gs = gridspec.GridSpec(1, 3, width_ratios=[1, 3, 1])
+        ax1 = fig.add_subplot(gs[0])
+        ax2 = fig.add_subplot(gs[1], sharey=ax1)
+        ax3 = fig.add_subplot(gs[2], sharey=ax2)
+
+        plt.setp(ax1.get_yticklabels(), visible=False)
+        plt.setp(ax2.get_yticklabels(), visible=False)
+        plt.setp(ax3.get_yticklabels(), visible=False)
+        ax1.spines["right"].set_visible(False)
+        ax2.spines["left"].set_visible(False)
+        ax2.spines["right"].set_visible(False)
+        ax3.spines["left"].set_visible(False)
+        ax1.yaxis.tick_left()
+        ax3.yaxis.tick_right()
+
+        # axes lines
+        d = 0.015  # how big to make the diagonal lines in axes coordinates
+        kw = dict(transform=ax1.transAxes, color="k", clip_on=False)
+        ax1.plot((1 - d, 1 + d), (-d, +d), **kw)
+        ax1.plot((1 - d, 1 + d), (1 - d, 1 + d), **kw)
+
+        kw.update(transform=ax2.transAxes)
+        ax2.plot((-d, +d), (1 - d, 1 + d), **kw)
+        ax2.plot((-d, +d), (-d, +d), **kw)
+
+        kw.update(transform=ax3.transAxes)
+        ax3.plot((-d, +d), (1 - d, 1 + d), **kw)
+        ax3.plot((-d, +d), (-d, +d), **kw)
+
+        vals = self.integrand(self.class_rho, spll, sprp)
+        res, err, rel_err, peaks = self.integral(
+            spll, sprp, bounds=integbounds, peakskw=peakskw, integkw=integkw
+        )
+
+        ax1.plot(self.class_rho, vals)
+        ax1.axvline(peaks[0], color="k", alpha=0.7, ls=":")
+        ax1.set_xlim(peaks[0] - 0.1, peaks[0] + 0.3)
+
+        ax2.plot(self.class_rho, vals)
+        [
+            ax2.axvline(peak, color="k", alpha=0.7, ls=":")
+            for peak in peaks[1:-1]
+        ]
+        ax2.set_xlim(peaks[1] - 0.1, peaks[-2] + 0.1)
+
+        ax3.plot(self.class_rho, vals)
+        ax3.axvline(peaks[-1], color="k", alpha=0.7, ls=":")
+        ax3.set_xlim(peaks[-1] - 0.3, peaks[-1] + 0.1)
+
+        return fig
+
+    # /deff
 
 
 # /class
