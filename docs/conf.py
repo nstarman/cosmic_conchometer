@@ -25,7 +25,7 @@
 # Thus, any C-extensions that are needed to build the documentation will *not*
 # be accessible, and the documentation will not build correctly.
 
-# BUILT-IN
+# STDLIB
 import datetime
 import os
 import sys
@@ -44,7 +44,7 @@ else:
     from sphinx_astropy.conf.v1 import exclude_patterns, rst_epilog, extensions
 
 
-# BUILT-IN
+# STDLIB
 # Get configuration information from setup.cfg
 from configparser import ConfigParser
 

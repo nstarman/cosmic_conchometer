@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-# BUILT-IN
+# STDLIB
 import typing as T
 
 # THIRD PARTY
@@ -227,9 +227,7 @@ class _Z_Of:
             cosmo = default_cosmology.get()
 
         rootkw["full_output"] = False  # ensure output
-        z_eq: u.Quantity = z_matter_radiation_equality(
-            cosmo=cosmo, zmin=zmin, zmax=zmax, **rootkw
-        )
+        z_eq: u.Quantity = z_matter_radiation_equality(cosmo=cosmo, zmin=zmin, zmax=zmax, **rootkw)
         return z_eq
 
     @property

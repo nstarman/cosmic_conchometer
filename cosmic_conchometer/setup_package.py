@@ -8,7 +8,7 @@
 
 from __future__ import absolute_import, annotations
 
-# BUILT-IN
+# STDLIB
 import pathlib
 import typing as T
 

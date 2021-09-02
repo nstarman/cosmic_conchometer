@@ -10,7 +10,7 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
-# BUILT-IN
+# STDLIB
 import pathlib
 
 # PROJECT-SPECIFIC
@@ -42,9 +42,7 @@ def test_setup_package_flags():
 
     # meta-test that this test is capturing all the flags
     IS_TESTED = ["HAS_TQDM", "DATA_DIR"]
-    assert all(
-        [f in IS_TESTED for f in setup_package.__all__ if f.upper() == f]
-    )
+    assert all([f in IS_TESTED for f in setup_package.__all__ if f.upper() == f])
 
 
 # /def

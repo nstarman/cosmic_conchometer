@@ -10,7 +10,7 @@ __all__ = [
 ##############################################################################
 # IMPORTS
 
-# BUILT-IN
+# STDLIB
 import typing as T
 from abc import abstractmethod
 from types import MappingProxyType
@@ -58,7 +58,7 @@ class DiffusionDistortionBase(CosmologyDependent):
         zvalid=(None, 100),  # TODO! auto-determine if None
         *,
         AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO? move to superclass
@@ -223,16 +223,68 @@ class DiffusionDistortionBase(CosmologyDependent):
 
     # /def
 
-    # -----------------------------------------------------
+    # ===============================================================
 
-    def plot_class_points_distribution(self, density=False):
+    def plot_CLASS_points_distribution(self, density=False):
+        """Plot the distribution of evaluation points."""
         fig = plt.figure()
         ax = fig.add_subplot()
 
         ax.hist(np.log10(self.class_z[:-1]), density=density, bins=30)
+        ax.axvline(
+            np.log10(self.z_recombination),
+            c="k",
+            ls="--",
+            label="Recombination",
+        )
+
         ax.set_xlabel(r"$log_{10}(z)$")
         ax.set_ylabel("frequency" + ("density" if density else ""))
         ax.set_title("CLASS points distribution")
+        ax.legend()
+
+        return fig
+
+    # /def
+
+    def plot_zv_choice(self):
+        """Plot ``z_v`` choice."""
+        fig = plt.figure(figsize=(10, 4))
+
+        # --------------
+        ax1 = fig.add_subplot(121, title=r"Choosing $z_V$", xlabel="z", ylabel=r"$g_\gamma^{CL}$")
+
+        # z-valid
+        zVi, zVf = self.zvalid
+        if zVi == self.class_z[0]:
+            zVi = None
+        gbarCL_V = self.class_g[np.argmin(np.abs(self.class_z - zVf))]
+
+        ind = self.class_g > 1e-18 / u.Mpc  # cutoff for plot clarity
+        ax1.loglog(self.class_z[ind], self.class_g[ind])
+        if zVi is not None:
+            ax1.axvline(zVi, c="k", ls=":", label=fr"$z$={zVi}")
+        ax1.axvline(zVf, c="k", ls=":", label=fr"$z_V$={zVf}")
+
+        ax1.axhline(gbarCL_V.value, c="k", ls=":", label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_V:.2e}")
+        ax1.invert_xaxis()
+        ax1.legend()
+
+        # --------------
+        ax2 = fig.add_subplot(122, xlabel=r"\rho", ylabel=r"$g_\gamma^{CL}(\rho)$")
+
+        rhoVi, rhoVf = self.rhovalid
+
+        ax2.plot(self.class_rho[ind], self.class_g[ind])
+        if zVi is not None:
+            rhoVi = distances.rho_of.z(zVi, zeq=zeq)
+            ax2.axvline(rhoVi, c="k", ls=":", label=fr"$\rho_i$={rhoVi:.2e}")
+        ax2.axvline(rhoVf, c="k", ls=":", label=fr"$\rho_V$={rhoVf:.2e}")
+        ax2.axhline(
+            gbarCL_V.value, c="k", ls=":", label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_V:.2e}"
+        )
+        ax2.set_yscale("log")
+        ax2.legend()
 
         return fig
 

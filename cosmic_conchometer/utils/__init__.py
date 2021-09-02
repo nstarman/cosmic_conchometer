@@ -23,10 +23,8 @@ __all__ = [
 # IMPORTS
 
 # PROJECT-SPECIFIC
-from . import distances, misc
-from .misc import *  # noqa: F401, F403
-
-__all__ += misc.__all__
+from . import distances
+from . import classy_utils
 
 
 ##############################################################################

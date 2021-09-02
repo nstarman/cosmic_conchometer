@@ -8,7 +8,7 @@ packagename.test
 
 """
 
-# BUILT-IN
+# STDLIB
 import os
 import typing as T
 
