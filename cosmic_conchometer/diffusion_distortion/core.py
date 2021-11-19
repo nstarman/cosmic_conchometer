@@ -130,10 +130,6 @@ class DiffusionDistortionBase(CosmologyDependent):
 
     # --------
 
-    @property
-    def z_eq(self):
-        return self._zeq
-
     @lazyproperty
     def rho_eq(self):
         return distances.rho_of.matter_radiation_equality  # := 1

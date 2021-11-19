@@ -18,14 +18,13 @@ import numpy as np
 import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from classy import Class as CLASS
+from matplotlib import gridspec
+from matplotlib.colors import Normalize
+from matplotlib.widgets import Button, Slider, TextBox
 from numpy import absolute, arctan2, array, nan_to_num, sqrt
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from scipy.signal import find_peaks
 from scipy.special import xlogy
-
-from matplotlib import gridspec
-from matplotlib.widgets import Slider, Button, TextBox
-from matplotlib.colors import Normalize
 
 # PROJECT-SPECIFIC
 from .core import DiffusionDistortionBase
@@ -95,7 +94,9 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         self._spl_PbarCL = IUS(rho, self.class_P, ext=2)
         self._spl_dk_dt = IUS(rho, self.class_dk_dt, ext=2)
-        self._spl_gbarCL = IUS(rho, self.class_g, ext=1)  # ext 1 makes stuff 0
+        self._spl_gbarCL = IUS(
+            rho, self.class_g, ext=1
+        )  # ext 1 makes stuff 0  # TODO! does this introduce a discontinuity?
 
         # derivatives wrt rho  # TODO! plot out to make sure they look good
         self._spl_d2k_dtdrho = self._spl_dk_dt.derivative(n=1)
@@ -144,7 +145,7 @@ class SpectralDistortion(DiffusionDistortionBase):
 
     # /def
 
-    def boundary_terms(self, rho1: float, spll: float, sprp: float) -> float:
+    def _sprpP_boundary_terms(self, rho1: float, spll: float, sprp: float) -> float:
         """
 
         Parameters
@@ -175,7 +176,7 @@ class SpectralDistortion(DiffusionDistortionBase):
 
     # /def
 
-    def integrand(self, rho1: float, spll: float, sprp: float, abs: bool = False) -> float:
+    def _sprpP_integrand(self, rho1: float, spll: float, sprp: float, abs: bool = False) -> float:
         """
 
         Parameters
@@ -213,7 +214,7 @@ class SpectralDistortion(DiffusionDistortionBase):
 
     # /def
 
-    def integral(
+    def _sprpP_integral(
         self,
         spll: float,
         sprp: float,
@@ -225,7 +226,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         bounds = self.rhovalid if bounds is None else bounds
 
         x = self.class_rho[(bounds[0] <= self.class_rho) & (self.class_rho <= bounds[1])]
-        vals = self.integrand(x, spll, sprp, abs=True)
+        vals = self._sprpP_integrand(x, spll, sprp, abs=True)
         pospeaks, posprops = find_peaks(vals, **(peakskw or {}))
         negpeaks, negprops = find_peaks(-vals, **(peakskw or {}))
 
@@ -245,7 +246,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         ress, _ = np.array(
             [
                 integ.quad(
-                    self.integrand,
+                    self._sprpP_integrand,
                     lb,
                     ub,
                     args=(spll, sprp, False),
@@ -259,7 +260,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         absress, errs = np.array(
             [
                 integ.quad(
-                    self.integrand,
+                    self._sprpP_integrand,
                     lb,
                     ub,
                     args=(spll, sprp, True),
@@ -308,10 +309,10 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         # boundary terms
         bounds = self.rhovalid if bounds is None else bounds
-        ub = self.boundary_terms(bounds[-1], spll, sprp)
-        lb = self.boundary_terms(bounds[0], spll, sprp)
+        ub = self._sprpP_boundary_terms(bounds[-1], spll, sprp)
+        lb = self._sprpP_boundary_terms(bounds[0], spll, sprp)
 
-        integral, err, rel_err, _ = self.integral(
+        integral, err, rel_err, _ = self._sprpP_integral(
             spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
         )
 
@@ -379,14 +380,15 @@ class SpectralDistortion(DiffusionDistortionBase):
         plt.subplots_adjust(bottom=0.25)  # !
 
         cnorm = Normalize(vmin=-4, vmax=1.5)
-        scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30,
-                          norm=cnorm)
+        scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm)
         ax.axvline(
             rhov - self.rho_recombination,
             c="k",
             label=r"$\rho_{valid}^{\max}-\rho_{R}$",
         )
-        plt.colorbar(scat, )
+        plt.colorbar(
+            scat,
+        )
 
         ax.set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
         ax.set_xlabel(r"$s_{||}$", fontsize=15)
@@ -403,7 +405,9 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         def update(val):
             rho1 = srho.val
-            scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm)
+            scat = ax.scatter(
+                Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm
+            )
             ax.axvline(
                 rhov - self.rho_recombination,
                 c="k",
@@ -415,13 +419,15 @@ class SpectralDistortion(DiffusionDistortionBase):
             fig.canvas.draw_idle()
 
         srho.on_changed(update)
-        
+
         axbox = fig.add_axes([0.12, 0.025, 0.2, 0.04])
         text_box = TextBox(axbox, r"$\rho_1$")
 
         def submit(strval):
             rho1 = float(strval)
-            scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm)
+            scat = ax.scatter(
+                Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm
+            )
             ax.axvline(
                 rhov - self.rho_recombination,
                 c="k",
@@ -454,6 +460,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         integbounds: T.Optional[T.Tuple[float, float]] = None,
         peakskw: T.Optional[T.Dict[str, T.Any]] = None,
         integkw: T.Optional[T.Dict[str, T.Any]] = None,
+        pdfmetadata: T.Optional[dict] = None,
     ):
         # create figure and axes
         fig = plt.figure(figsize=(12, 4))
@@ -490,8 +497,8 @@ class SpectralDistortion(DiffusionDistortionBase):
         ax3.plot((-d, +d), (-d, +d), **kw)
 
         # evaluate integrand
-        vals = self.integrand(self.class_rho, spll, sprp)
-        res, err, rel_err, peaks = self.integral(
+        vals = self._sprpP_integrand(self.class_rho, spll, sprp)
+        res, err, rel_err, peaks = self._sprpP_integral(
             spll, sprp, bounds=integbounds, peakskw=peakskw, integkw=integkw
         )
 

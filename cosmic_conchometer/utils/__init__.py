@@ -23,9 +23,7 @@ __all__ = [
 # IMPORTS
 
 # PROJECT-SPECIFIC
-from . import distances
-from . import classy_utils
-
+from . import classy_utils, distances
 
 ##############################################################################
 # END

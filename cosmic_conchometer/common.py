@@ -23,7 +23,7 @@ from astropy.utils.state import ScienceState
 # PROJECT-SPECIFIC
 from .config import conf
 from .typing import ArrayLike
-from .utils.distances import lambda_naught
+from .utils import distances
 
 __all__ = [
     "default_cosmo",
@@ -218,30 +218,29 @@ class CosmologyDependent(metaclass=ABCMeta):
 
     meta = MetaData()
 
-    def __init__(self, cosmo: Cosmology, meta=None):
+    def __init__(self, cosmo: Cosmology, *, meta=None):
         self._cosmo: Cosmology = cosmo  # the astropy cosmology
         self.meta.update(meta or {})
 
-        self._lambda0 = lambda_naught(cosmo) << u.Mpc
-
-    # /def
+        self._lambda0 = distances.lambda_naught(cosmo) << u.Mpc
+        self._zeq = distances.z_of.matter_radiation_equality(cosmo=cosmo)
 
     @property
     def cosmo(self) -> Cosmology:
         """Cosmology instance."""
         return self._cosmo
 
-    # /def
-
     @property
     def Tcmb0(self) -> u.Quantity:
         return self.cosmo.Tcmb0
 
-    # /def
-
     @property
     def lambda0(self) -> u.Quantity:
         return self._lambda0
+
+    @property
+    def z_eq(self):
+        return self._zeq
 
     # ===============================================================
     # stuff
