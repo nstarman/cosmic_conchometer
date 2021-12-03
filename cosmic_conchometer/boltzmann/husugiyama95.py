@@ -32,6 +32,8 @@ __all__ = ["TransferFunctionHuSugiyama1995Theta0"]
 ##############################################################################
 # PARAMETERS
 
+speed_of_light = const.c.to_value(u.km / u.s)
+
 alpha1: float = 0.11
 alpha2: float = 0.097
 beta: float = 1.6
@@ -56,8 +58,8 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
     Parameters
     ----------
     cosmo : `~astropy.cosmology.core.Cosmology` instance
-    R : float
-        The scaled scale factor :math:`R = a * R_{eq}`.
+    a : float
+        The scale factor.
     krange : |Quantity|
         The (lower, change, upper) bound in units of inverse Megaparsecs.
         'change' is the 'k' to change between the two approximation regimes.
@@ -78,7 +80,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
            Background: an Analytic Approach. \apj, 444, 489.
     """
 
-    _R: float
+    _scale_factor: float
     _knum: int
     _kmin: float
     _kchng: float
@@ -89,7 +91,8 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
     def __init__(
         self,
         cosmo: Cosmology,
-        R: float,
+        a: float,
+        As: float,
         *,
         krange: u.Quantity = (1e-4, 0.03, 10.0) / u.Mpc,
         knum: int = 100,
@@ -102,9 +105,11 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         self._integ_kw = integ_kw or {}
 
         # dimensionless radius  # TODO! recast as scale factor
-        self._R = R
-        if not np.isscalar(R):
+        self._scale_factor = a
+        if not np.isscalar(a):
             raise ValueError(f"`R` must be a scalar, not {type(R)}.")
+
+        self._As = As
 
         # k
         self._knum = knum
@@ -112,11 +117,11 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
         # evaluate lower approximation
         karr_ls = np.geomspace(self._kmin, self._kchng, knum) / u.Mpc
-        ls = self.Theta0hatLS(R, karr_ls, integ_kw=integ_kw)
+        ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
 
         # evaluate upper approximation
         karr_ss = np.geomspace(self._kchng, self._kmax, knum) / u.Mpc
-        ss = self.Theta0hatSS(R, karr_ss, integ_kw=integ_kw)
+        ss = self.Theta0hatSS(a, karr_ss, integ_kw=integ_kw)
 
         # put the results together
         x = np.log10(np.concatenate((karr_ss.value, karr_ls.value)))
@@ -191,15 +196,15 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         """
         ss: N = _Theta0hatSS(
             a,
-            k.to_value(1 / u.Mpc) * const.c.to_value(u.km / u.s),
+            k.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             Req=self.Req,
-            keq=self.keq.to_value(1 / u.Mpc) * const.c.to_value(u.km / u.s),
+            keq=self.keq.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             h=self.cosmo.h,
             Ob0=self.cosmo.Ob0,
             Om0=self.cosmo.Om0,
             integ_kw=integ_kw or self._integ_kw,  # use default if integ_kw is None
         )
-        return ss
+        return self._As * ss
 
     def Theta0hatLS(self, a: N, k: u.Quantity, *, integ_kw: T.Optional[Mapping] = None) -> N:
         """:math:`\hat{\Theta}_0`, from Hu and Sugyiama [1]_, eqn. D-6.
@@ -226,15 +231,15 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         """
         ls: N = _Theta0hatLS(
             a,
-            k.to_value(1 / u.Mpc) * const.c.to_value(u.km / u.s),
+            k.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             Req=self.Req,
-            keq=self.keq.to_value(1 / u.Mpc) * const.c.to_value(u.km / u.s),
+            keq=self.keq.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             h=self.cosmo.h,
             Ob0=self.cosmo.Ob0,
             Om0=self.cosmo.Om0,
             integ_kw=integ_kw or self._integ_kw,  # use default if integ_kw is None
         )
-        return ls
+        return self._As * ls
 
     def __call__(self, k: u.Quantity) -> N:
         """Evaluate :math:`\hat{\Theta}_0`, from Hu and Sugyiama [1]_.
@@ -263,28 +268,28 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         """Plot :math:`\hat{\Theta}_0(|k|; \rho)`."""
         # evaluate lower approximation
         karr_ls = np.geomspace(self._kmin, self._kchng, self._knum) / u.Mpc
-        ls = self.Theta0hatLS(self._R, karr_ls, integ_kw=self._integ_kw)
+        ls = self.Theta0hatLS(self._scale_factor, karr_ls, integ_kw=self._integ_kw)
 
         # evaluate upper approximation
         karr_ss = np.geomspace(self._kchng, self._kmax, self._knum) / u.Mpc
-        ss = self.Theta0hatSS(self._R, karr_ss, integ_kw=self._integ_kw)
+        ss = self.Theta0hatSS(self._scale_factor, karr_ss, integ_kw=self._integ_kw)
 
-        # and evaluate the spline
-        x = np.concatenate((karr_ss, karr_ls)) << 1 / u.Mpc
-        y = self(x)
+        # and evaluate the fit
+        # x = np.concatenate((karr_ss, karr_ls)) << 1 / u.Mpc
+        # y = self(x)
 
         # plot
         fig: plt.Figure = plt.figure()
         ax: plt.Axes = fig.add_subplot(
             111,
             xlabel=r"$k \quad [\frac{1}{\rm{Mpc}}]$",
-            ylabel=r"$\hat{\Theta}_0$",
+            ylabel=r"$\hat{\Theta}_0 / A_s$",
             xscale="log",
-            yscale="log",
+            yscale="symlog",
         )
-        ax.scatter(karr_ls, ls, label="ls", s=4)
-        ax.scatter(karr_ss, ss, label="ss", s=5)
-        ax.plot(x, y, ls=":", c="k")
+        ax.scatter(karr_ls, ls / self._As, label="ls", s=4)
+        ax.scatter(karr_ss, ss / self._As, label="ss", s=5)
+        # ax.plot(x, y, ls=":", c="k")
         ax.legend()
 
         return fig
@@ -302,12 +307,14 @@ def _r_s(a: N, /, Req: float, keq: float) -> N:
     ----------
     a : scalar or array-like
         Scale factor (:math:`R / R_{eq}`).
+    Req : float
+        Scale factor at equality.
     keq : float
         'k' at equality from Hu & Sugiyama eq. D-8 and B-6 [1]_.
 
     Returns
     -------
-    scalar or array-like
+    scalar or array-like ['Mpc']
 
     References
     ----------
@@ -325,7 +332,7 @@ def _r_s(a: N, /, Req: float, keq: float) -> N:
 
 @numba.njit
 def _J0(k: N, /, Req: float, keq: float) -> N:
-    r"""Hu and Sugyiama [1]_, eqn. D-2.
+    r"""Hu and Sugyiama [1]_, eqn. D-2, evaluated at eta=0.
 
     Parameters
     ----------
@@ -378,8 +385,8 @@ def _qfunc(k: N, /, h: float, Ob0: float, Om0: float) -> N:
 
 
 @numba.njit
-def _Temp(k: N, h: float, Ob0: float, Om0: float) -> N:
-    r"""Temperature [K], from Hu & Sugiyama eq. A-21 [1]_.
+def _transfer(k: N, h: float, Ob0: float, Om0: float) -> N:
+    r"""Transfer function, from Hu & Sugiyama eq. A-21 [1]_.
 
     Parameters
     ----------
@@ -505,12 +512,12 @@ def _PhiBar(a: N, k: N, /, keq: float) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    out: N =  0.75 * keq / k ** 2 * (1 + a) / a ** 2 * _DeltaBarT(a)
+    out: N =  0.75 * (keq / k) ** 2 * (1 + a) / a ** 2 * _DeltaBarT(a)
     return out
 
 
 @numba.njit
-def PsiBar(a: N, k: N, /, keq: float) -> N:
+def _PsiBar(a: N, k: N, /, keq: float) -> N:
     r"""Hu and Sugyiama [1]_, eqn. A-17.
 
     Parameters
@@ -572,8 +579,8 @@ def _Phi(a: N, k: N, /, keq: float, h: float, Ob0: float, Om0: float) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    temp: N = _Temp(k, h=h, Ob0=Ob0, Om0=Om0)
-    out: N = _PhiBar(a, k, keq=keq) * (temp + (1 - temp) * exp(-alpha1 * (a * k / keq) ** beta))
+    T: N = _transfer(k, h=h, Ob0=Ob0, Om0=Om0)
+    out: N = _PhiBar(a, k, keq=keq) * (T + (1 - T) * exp(-alpha1 * (a * k / keq) ** beta))
     return out
 
 
@@ -607,14 +614,14 @@ def _Psi(a: N, k: N, /, keq: float, h: float, Ob0: float, Om0: float) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    temp: N = _Temp(k, h=h, Ob0=Ob0, Om0=Om0)
-    out: N = PsiBar(a, k, keq=keq) * (temp + (1 - temp) * exp(-alpha2 * (a * k / keq) ** beta))
+    temp: N = _transfer(k, h=h, Ob0=Ob0, Om0=Om0)
+    out: N = _PsiBar(a, k, keq=keq) * (temp + (1 - temp) * exp(-alpha2 * (a * k / keq) ** beta))
     return out
 
 
 @numba.njit
 def _PhiBar0(k: N, /, keq: float) -> N:
-    r"""by substituting R = 0 into PhiBar, DeltaBarT, UG.
+    r"""By substituting R = 0 into PhiBar, DeltaBarT, UG.
 
     Parameters
     ----------
@@ -628,7 +635,8 @@ def _PhiBar0(k: N, /, keq: float) -> N:
     scalar or array-like
         Same as ``k``.
     """
-    out: N = (5 + 2 * fnu) * keq ** 2 / (6 * k ** 2)
+    # NOTE! have we correctly taken the limit!!!! THIS IS WORTH CHECKING
+    out: N = (5 + 2 * fnu) * (keq / k) ** 2 / 6
     return out
 
 
