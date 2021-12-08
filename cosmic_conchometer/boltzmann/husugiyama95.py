@@ -21,6 +21,7 @@ import numpy as np
 import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from numpy import cos, exp, log, power, sin, sqrt
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 # PROJECT-SPECIFIC
 from .base import TransferFunctionBase, N
@@ -116,23 +117,41 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         self._kmin, self._kchng, self._kmax = krange.to_value(1 / u.Mpc)
 
         # evaluate lower approximation
-        karr_ls = np.geomspace(self._kmin, self._kchng, knum) / u.Mpc
+        karr_ls = np.geomspace(self._kmin, self._kchng, knum, endpoint=False) / u.Mpc
         ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
+        self._theta0ls = ls
 
         # evaluate upper approximation
         karr_ss = np.geomspace(self._kchng, self._kmax, knum) / u.Mpc
         ss = self.Theta0hatSS(a, karr_ss, integ_kw=integ_kw)
+        self._theta0ss = ss
 
         # put the results together
-        x = np.log10(np.concatenate((karr_ss.value, karr_ls.value)))
-        y = np.log10(np.concatenate((ss, ls)))
+        lgk = np.log10(np.concatenate((karr_ls.value, karr_ss.value)))  #  * u.dex(1/u.Mpc)
+        th0 = np.concatenate((ls, ss)) / self._As
 
-        # fit line
-        poly1, info = np.polynomial.Polynomial.fit(
-            x, y, deg=1, domain=domain.to_value(1 / u.Mpc) if domain is not None else None, full=True
-        )
-        self._fit = poly1
-        self._fit_info = info
+        self.temp = (lgk, th0)
+
+        # Find the first zero crossing (not in log space).
+        zerox_idx = np.where(th0 <= 0)[0][0]
+        lgk_zerox = lgk[zerox_idx]
+        self._lgk_zerox = lgk_zerox
+
+        # all the fits will be done on the absolute value of th0, so to be able
+        # to recover the correct sign from the fit we need to store it now
+        self._signk = InterpolatedUnivariateSpline(lgk, np.sign(th0))
+
+        # fit at low k
+        # theta0 adjusted to factor out the dominant k dependence (k^2)
+        lowk = slice(None, zerox_idx)
+        th0adj = np.log10(np.abs(th0[lowk])) * lgk[lowk] ** 2
+        self._fitlowk = InterpolatedUnivariateSpline(lgk[lowk], th0adj[lowk])
+
+        # fit at high k
+        # theta0 adjusted to factor out the dominant k dependence (k^2)
+        highk = slice(zerox_idx, None)
+        th0adj2 = np.sign(th0[highk]) * np.power(np.abs(th0[highk]), lgk[highk] ** 2)
+        self._fithighk = InterpolatedUnivariateSpline(lgk[highk], th0adj2)
 
     @property
     def fitted(self) -> np.polynomial.Polynomial:
@@ -246,7 +265,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
         Parameters
         ----------
-        k : |Quantity|
+        k : |Quantity| ['wavenumber']
             In units of inverse Megaparsec.
 
         Returns
@@ -258,21 +277,33 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic
                Microwave Background: an Analytic Approach. \apj, 444, 489.
         """
-        theta0: N = 10 ** self._fit(np.log10(k.to_value(1 / u.Mpc)))
-        return theta0
+        lgks: np.ndarray = np.atleast_1d(np.log10(k.to_value(1 / u.Mpc)))
+
+        abstheta0 = np.empty_like(lgks)
+        # TODO! what if it's not positive?
+        lowk = lgks < self._lgk_zerox  # point where change fits
+        abstheta0[lowk] = np.power(10, self._fitlowk(lgks[lowk]) / lgks[lowk]**2)
+
+        highk = ~lowk
+        abstheta0[highk] = np.power(np.abs(self._fithighk(lgks[highk])), 1 / lgks[highk]**2)
+
+        return self._signk(lgks) * abstheta0
 
     # ===============================================================
     # Plot
 
     def plot_theta0hat(self) -> plt.Figure:
         """Plot :math:`\hat{\Theta}_0(|k|; \rho)`."""
-        # evaluate lower approximation
-        karr_ls = np.geomspace(self._kmin, self._kchng, self._knum) / u.Mpc
-        ls = self.Theta0hatLS(self._scale_factor, karr_ls, integ_kw=self._integ_kw)
+#         # evaluate lower approximation
+#         karr_ls = np.geomspace(self._kmin, self._kchng, self._knum) / u.Mpc
+#         ls = self.Theta0hatLS(self._scale_factor, karr_ls, integ_kw=self._integ_kw)
+# 
+#         # evaluate upper approximation
+#         karr_ss = np.geomspace(self._kchng, self._kmax, self._knum) / u.Mpc
+#         ss = self.Theta0hatSS(self._scale_factor, karr_ss, integ_kw=self._integ_kw)
 
-        # evaluate upper approximation
+        karr_ls = np.geomspace(self._kmin, self._kchng, self._knum, endpoint=False) / u.Mpc
         karr_ss = np.geomspace(self._kchng, self._kmax, self._knum) / u.Mpc
-        ss = self.Theta0hatSS(self._scale_factor, karr_ss, integ_kw=self._integ_kw)
 
         # and evaluate the fit
         # x = np.concatenate((karr_ss, karr_ls)) << 1 / u.Mpc
@@ -287,8 +318,8 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
             xscale="log",
             yscale="symlog",
         )
-        ax.scatter(karr_ls, ls / self._As, label="ls", s=4)
-        ax.scatter(karr_ss, ss / self._As, label="ss", s=5)
+        ax.scatter(karr_ls, self._theta0ls / self._As, label="ls", s=4)
+        ax.scatter(karr_ss, self._theta0ss / self._As, label="ss", s=5)
         # ax.plot(x, y, ls=":", c="k")
         ax.legend()
 
