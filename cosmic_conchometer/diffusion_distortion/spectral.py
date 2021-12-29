@@ -16,6 +16,7 @@ import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate as integ
+import tqdm
 from astropy.cosmology.core import Cosmology
 from classy import Class as CLASS
 from matplotlib import gridspec
@@ -25,6 +26,7 @@ from numpy import absolute, arctan2, array, nan_to_num, sqrt
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
 from scipy.signal import find_peaks
 from scipy.special import xlogy
+from shapely.geometry import Point, Polygon
 
 # PROJECT-SPECIFIC
 from .core import DiffusionDistortionBase
@@ -32,17 +34,11 @@ from cosmic_conchometer.typing import ArrayLikeCallable
 from cosmic_conchometer.utils import distances
 
 ##############################################################################
-# PARAMETERS
-
-I = int
-rho0 = distances.rho0
-
-##############################################################################
 # CODE
 ##############################################################################
 
 
-def rho2_of_rho1(rho1, spll, sprp, maxrhovalid):
+def rho2_of_rho1(rho1: float, spll: float, sprp: float, maxrhovalid: float) -> float:
     """:math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`
 
     TODO! move to utils
@@ -51,15 +47,13 @@ def rho2_of_rho1(rho1, spll, sprp, maxrhovalid):
     ----------
     rho1 : float
     spll, sprp : float
+    maxrhovalid : float
 
     Returns
     -------
     float
     """
     return rho1 - sqrt((spll + rho1 - maxrhovalid) ** 2 + sprp ** 2)
-
-
-# /def
 
 
 ##############################################################################
@@ -74,7 +68,8 @@ class SpectralDistortion(DiffusionDistortionBase):
         The cosmology
     class_cosmo : :class:`~classy.Class`
     AkFunc: Callable or str or None (optional, keyword-only)
-
+    **kwargs
+        Ignored.
     """
 
     def __init__(
@@ -104,8 +99,6 @@ class SpectralDistortion(DiffusionDistortionBase):
         self._spl_d1gbarCL = self._spl_gbarCL.derivative(n=1)
         self._spl_d2gbarCL = self._spl_gbarCL.derivative(n=2)
 
-    # /def
-
     # ===============================================================
 
     @u.quantity_input(freq=u.GHz, k=1 / u.Mpc)
@@ -128,25 +121,19 @@ class SpectralDistortion(DiffusionDistortionBase):
             The frequency.
         k : `~astropy.units.Quantity`
             Units of inverse Mpc.
+        real_AK : bool or None (optional)
+            Whether to use the real (`True`) or imaginary (`False`) component
+            of ``Ak`` or return the whole complex factor (`None`, default).
 
         Returns
         -------
         `~astropy.units.Quantity`
             units of [Mpc**2 * units[AkFunc]]
-
-        Other Parameters
-        ----------------
-        real_AK : bool or None (optional)
-            Whether to use the real (True) or imaginary (False) component of
-            Ak or return the whole complex factor (None, default)
-
         """
         raise NotImplementedError("TODO!")
 
-    # /def
-
     def _sprpP_boundary_terms(self, rho1: float, spll: float, sprp: float) -> float:
-        """
+        """Boundary terms for s⟂P(s∥, s⟂) integration-by-parts.
 
         Parameters
         ----------
@@ -174,16 +161,14 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return U * s2V - sUp * sW
 
-    # /def
-
     def _sprpP_integrand(self, rho1: float, spll: float, sprp: float, abs: bool = False) -> float:
-        """
+        """Integrand for s⟂P(s∥, s⟂) integration-by-parts.
 
         Parameters
         ----------
         rho1 : float
         spll, sprp : float
-        abs : bool
+        abs : bool, optional
             Whether to take the absolute value
 
         Returns
@@ -212,8 +197,6 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return absolute(sUpp * sW) if abs else sUpp * sW
 
-    # /def
-
     def _sprpP_integral(
         self,
         spll: float,
@@ -223,6 +206,22 @@ class SpectralDistortion(DiffusionDistortionBase):
         peakskw: T.Optional[T.Dict[str, T.Any]] = None,
         integkw: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> T.Tuple[float, float, float, np.ndarray]:
+        """s⟂P(s∥, s⟂) integration-by-parts.
+
+        See :meth:`SpectralDistortion.sprpP`.
+
+        Returns
+        -------
+        res : float
+            The integration.
+        err : float
+            The absolute error in the integral.
+        rel_err : float
+            The relative error in the integral.
+        peaks : ndarray[float]
+            Locations (in rho) of the peaks used to subdivide the integration
+            bounds into well-behaved regions.
+        """
         bounds = self.rhovalid if bounds is None else bounds
 
         x = self.class_rho[(bounds[0] <= self.class_rho) & (self.class_rho <= bounds[1])]
@@ -277,8 +276,6 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return res, err, rel_err, peaks
 
-    # /def
-
     def sprpP(
         self,
         spll: float,
@@ -287,23 +284,26 @@ class SpectralDistortion(DiffusionDistortionBase):
         *,
         peakskw: T.Optional[T.Dict[str, T.Any]] = None,
         integkw: T.Optional[T.Dict[str, T.Any]] = None,
-    ):
-        """
+    ) -> T.Tuple[float, float, float]:
+        r""":math:`s_{\perp}\mathcal{P}(s_{||},s_{\perp})`.
 
         Parameters
         ----------
         spll, sprp : float
         bounds : tuple[float, float] or None, optional
-            The bounds of integration.
-        **integkw
-            For `scipy.integrate.quad`
+            The bounds of integration. If `None` (default) uses :attr:`~SpectralDistortion.rhovalid`
+        peaksks : dict[str, Any] or None (optional, keyword-only)
+            Keyword arguments for `scipy.signal.find_peaks`.
+        integkw : dict[str, Any] or None (optional, keyword-only)
+            Keyword arguments for `scipy.integrate.quad`.
 
         Returns
         -------
         s⟂P(s∥, s⟂) : float
+        err : float
+            The absolute error.
         rel_err : float
             The relative error.
-
         """
         prefactor = 3 * self.lambda0 ** 2 / (8 * self._spl_PbarCL(self.maxrhovalid))
 
@@ -318,7 +318,71 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return prefactor * (ub - lb + integral), prefactor * err, rel_err
 
-    # /def
+    def sprpP_on_grid(
+        self,
+        splls: np.ndarray,
+        sprps: np.ndarray,
+        bounds: T.Optional[T.Tuple[float, float]] = None,
+        *,
+        peakskw: T.Dict[str, T.Any] = dict(prominence=1e-7),
+        integkw: T.Dict[str, T.Any] = dict(epsabs=1e-11, limit=500),
+        domain: T.Optional[Polygon] = None,
+    ) -> None:
+        """Calculate  :math:`s_{\perp}\mathcal{P}(s_{||},s_{\perp})`.
+
+        The calculated result is saved to an npz file.
+
+        Parameters
+        ----------
+        splls : (N,) ndarray
+            Array of :math:`s_{||}`. Built into a meshgrid with ``sprps``.
+        sprps : (M,) ndarray
+            Array of :math:`s_{\perp}`. Built into a meshgrid with ``splls``.
+        bounds : tuple[float, float] or None, optional
+            The bounds of integration. If `None` (default) uses
+            :attr:`~SpectralDistortion.rhovalid`, buffering the upper bound by 3.
+        """
+        # make meshgrid
+        Sprps, Splls = np.meshgrid(sprps, splls)
+
+        # Define bounds of integration
+        bounds: T.Tuple[float, float] = (
+            (self.rhovalid[0], self.maxrhovalid + 3) if bounds is None else bounds
+        )
+
+        num: int = len(Splls.flat)
+        results: np.ndarray = np.full(num, np.NaN, dtype=float)
+        errors: np.ndarray = np.full(num, np.NaN, dtype=float)
+        relative_errors: np.ndarray = np.full(num, np.NaN, dtype=float)
+
+        i: int
+        spll: float
+        sprp: float
+        for i, (spll, sprp) in tqdm.tqdm(enumerate(zip(Splls.flat, Sprps.flat)), total=num):
+
+            # check if the point is within the mask
+            if domain is not None and not domain.contains(Point(spll, sprp)):
+                continue
+
+            # TODO! test upper bound doesn't matter so much, so long as upper > rhoV
+            res, err, rel_err = self.sprpP(
+                spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
+            )
+
+            results[i] = res.value
+            errors[i] = err.value
+            relative_errors[i] = rel_err
+
+        # save mesh, sprpP integral, associated errors, and other info.
+        np.savez(
+            f"output/run-bounds_{bounds}-integkw_{integkw.items()}.npz",
+            Splls=Splls,
+            Sprps=Sprps,
+            results=results,
+            errors=errors,
+            relative_errors=relative_errors,
+            bounds=np.array(list(bounds)),
+        )
 
     # ===============================================================
     # Convenience Methods
@@ -363,32 +427,48 @@ class SpectralDistortion(DiffusionDistortionBase):
         raise NotImplementedError("TODO!")
 
     compute = __call__
-    # /def
 
     #######################################################
     # PLOT
 
-    def plot_rho2(self, rho1=None, splls=None, sprps=None):
+    def plot_rho2(
+        self, rho1: float = None, splls: np.ndarray = None, sprps: np.ndarray = None
+    ) -> plt.Figure:
+        """Plot :math:`\rho_2(s_{||}, s_{\perp}; \rho_1)`.
+
+        Parameters
+        ----------
+        rho1 : float, optional
+            The rho of last sctter. If `None` (default) uses
+            :attr:`SpectralDistortion.rho_recombination`.
+        splls : (N,) ndarray or None, optional
+            Array of :math:`s_{||}`. Built into a meshgrid with ``sprps``.
+            If `None` (default), uses ``np.linspace(0, 5.5, num=30)``.
+        sprps : (M,) ndarray, optional
+            Array of :math:`s_{\perp}`. Built into a meshgrid with ``splls``.
+            If `None` (default), uses ``np.linspace(1e-4, 4, num=30)``.
+
+        Returns
+        -------
+        `~matplotlib.pyplot.Figure`
+        """
+        # get arguments, replacing with defaults if None.
         rho1 = rho1 if rho1 is not None else self.rho_recombination
         splls = splls or np.linspace(0, 5.5, num=30)
         sprps = sprps or np.linspace(1e-4, 4, num=30)
 
+        # build meshgrid and anchor rho
         Splls, Sprps = np.meshgrid(splls, sprps)
         rhov = self.rhovalid[-1]
 
+        # Plot
         fig, ax = plt.subplots(figsize=(7, 5))
-        plt.subplots_adjust(bottom=0.25)  # !
+        plt.subplots_adjust(bottom=0.25)
 
         cnorm = Normalize(vmin=-4, vmax=1.5)
         scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm)
-        ax.axvline(
-            rhov - self.rho_recombination,
-            c="k",
-            label=r"$\rho_{valid}^{\max}-\rho_{R}$",
-        )
-        plt.colorbar(
-            scat,
-        )
+        ax.axvline(rhov - self.rho_recombination, c="k", label=r"$\rho_{valid}^{\max}-\rho_{R}$")
+        plt.colorbar(scat)
 
         ax.set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
         ax.set_xlabel(r"$s_{||}$", fontsize=15)
@@ -450,18 +530,34 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return fig
 
-    # /def
-
     def plot_integrand_at(
         self,
         spll: float,
         sprp: float,
         *,
-        integbounds: T.Optional[T.Tuple[float, float]] = None,
+        bounds: T.Optional[T.Tuple[float, float]] = None,
         peakskw: T.Optional[T.Dict[str, T.Any]] = None,
         integkw: T.Optional[T.Dict[str, T.Any]] = None,
-        pdfmetadata: T.Optional[dict] = None,
-    ):
+        pdfmetadata: T.Optional[T.Dict[str, T.Any]] = None,
+    ) -> plt.Figure:
+        """Plot s⟂P(s∥, s⟂) integrand.
+
+        Parameters
+        ----------
+        spll, sprp : float
+        bounds : tuple[float, float] or None (optional, keyword-only)
+            The bounds of integration. If `None` (default) uses :attr:`~SpectralDistortion.rhovalid`
+        peaksks : dict[str, Any] or None (optional, keyword-only)
+            Keyword arguments for `scipy.signal.find_peaks`.
+        integkw : dict[str, Any] or None (optional, keyword-only)
+            Keyword arguments for `scipy.integrate.quad`.
+        pdfmetadata : dict[str, Any] or None (optional, keyword-only)
+            Metadata for saved PDF file.
+
+        Returns
+        -------
+        `~matplotlib.pyplot.Figure`
+        """
         # create figure and axes
         fig = plt.figure(figsize=(12, 4))
         gs = gridspec.GridSpec(1, 3, width_ratios=[1, 3, 1])
@@ -499,7 +595,7 @@ class SpectralDistortion(DiffusionDistortionBase):
         # evaluate integrand
         vals = self._sprpP_integrand(self.class_rho, spll, sprp)
         res, err, rel_err, peaks = self._sprpP_integral(
-            spll, sprp, bounds=integbounds, peakskw=peakskw, integkw=integkw
+            spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
         )
 
         # left-bound plot
@@ -523,10 +619,6 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         return fig
 
-    # /deff
-
-
-# /class
 
 ##############################################################################
 # END

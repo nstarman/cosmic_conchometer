@@ -22,9 +22,10 @@ import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from numpy import cos, exp, log, power, sin, sqrt
 from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.optimize import brentq
 
 # PROJECT-SPECIFIC
-from .base import TransferFunctionBase, N
+from .base import N, TransferFunctionBase
 from .utils import llc_integrand
 from cosmic_conchometer.common import CosmologyDependent
 
@@ -40,15 +41,6 @@ alpha2: float = 0.097
 beta: float = 1.6
 fnu: float = 0.45  # HS between A - 14 and A - 15 ratio of neutrino energy density to total radiation energy density
 
-# Planck 2018 values  # TODO! this needs to be a Cosmology-Dependent
-# Ob0: float = 0.04897
-# h: float = 0.6766
-# H0: float = 100.0 * h
-# a0: float = 1 + zeq  # ince HS normalize aeq = 1
-# keq: float = sqrt(2 * Ob0 * H0 ** 2 * a0)  # HS after A - 17  # FIXME! Or D-8
-# Req: float = 0.75 / (1 - fnu) * (Ob0 / Om0)
-# d2R: float = 0.25 * keq ** 2 * Req
-
 
 ##############################################################################
 
@@ -63,7 +55,12 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         The scale factor.
     krange : |Quantity|
         The (lower, change, upper) bound in units of inverse Megaparsecs.
-        'change' is the 'k' to change between the two approximation regimes.
+        'change' is the guessed 'k' to change between the two approximation
+        regimes.
+    lgkwindow : float
+        The window width in log-space around k-'change' about which to search
+        for k-cross, where the two approximations intersect. k-cross is the
+        where to change between the two approximation regimes.
     knum : int
         Number of k's in each of the two approximation regimes.
     domain : (2,) Quantity or None, optional
@@ -96,6 +93,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         As: float,
         *,
         krange: u.Quantity = (1e-4, 0.03, 10.0) / u.Mpc,
+        lgkwindow: float = 0.05,
         knum: int = 100,
         domain: T.Optional[u.Quantity] = None,
         integ_kw: T.Optional[Mapping] = None,
@@ -113,24 +111,29 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         self._As = As
 
         # k
+        self._kmin, self._kchng, self._kmax = krange.to(1 / u.Mpc)
+        self._lgkwindow = lgkwindow
         self._knum = knum
-        self._kmin, self._kchng, self._kmax = krange.to_value(1 / u.Mpc)
 
-        # evaluate lower approximation
-        karr_ls = np.geomspace(self._kmin, self._kchng, knum, endpoint=False) / u.Mpc
+        # evaluate lower approximation (overshoot kchange by lgkwindow)
+        karr_ls = np.geomspace(self._kmin, self._kchng * 10 ** lgkwindow, knum, endpoint=False)
         ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
-        self._theta0ls = ls
 
-        # evaluate upper approximation
-        karr_ss = np.geomspace(self._kchng, self._kmax, knum) / u.Mpc
+        # evaluate upper approximation (undershoot kchange by lgkwindow)
+        karr_ss = np.geomspace(self._kchng / 10 ** lgkwindow, self._kmax, knum)
         ss = self.Theta0hatSS(a, karr_ss, integ_kw=integ_kw)
-        self._theta0ss = ss
 
+        self._kcross = self._find_kcross(karr_ls, ls, karr_ss, ss)
+
+        lowk = karr_ls < self._kcross
+        highk = karr_ss >= self._kcross
         # put the results together
-        lgk = np.log10(np.concatenate((karr_ls.value, karr_ss.value)))  #  * u.dex(1/u.Mpc)
-        th0 = np.concatenate((ls, ss)) / self._As
-
-        self.temp = (lgk, th0)
+        lgk = np.log10(np.concatenate((karr_ls.value[lowk], karr_ss.value[highk]))) * u.dex(
+            1 / u.Mpc
+        )
+        th0 = np.concatenate((ls[lowk], ss[highk])) / self._As
+        self._lgk = lgk
+        self._th0 = th0
 
         # Find the first zero crossing (not in log space).
         zerox_idx = np.where(th0 <= 0)[0][0]
@@ -138,20 +141,49 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         self._lgk_zerox = lgk_zerox
 
         # all the fits will be done on the absolute value of th0, so to be able
-        # to recover the correct sign from the fit we need to store it now
+        # to recover the correct sign from the fit we need to store it now.
+        # TODO? an actual step function
         self._signk = InterpolatedUnivariateSpline(lgk, np.sign(th0))
 
         # fit at low k
         # theta0 adjusted to factor out the dominant k dependence (k^2)
         lowk = slice(None, zerox_idx)
-        th0adj = np.log10(np.abs(th0[lowk])) * lgk[lowk] ** 2
+        th0adj = np.log10(np.abs(th0[lowk])) * lgk[lowk].value ** 2
         self._fitlowk = InterpolatedUnivariateSpline(lgk[lowk], th0adj[lowk])
 
         # fit at high k
         # theta0 adjusted to factor out the dominant k dependence (k^2)
         highk = slice(zerox_idx, None)
-        th0adj2 = np.sign(th0[highk]) * np.power(np.abs(th0[highk]), lgk[highk] ** 2)
+        th0adj2 = np.sign(th0[highk]) * np.power(np.abs(th0[highk]), lgk[highk].value ** 2)
         self._fithighk = InterpolatedUnivariateSpline(lgk[highk], th0adj2)
+
+    def _find_kcross(self, klow, th0low, kup, th0up):
+        # now spline them separately
+        a = self._kchng / 10 ** self._lgkwindow
+        b = self._kchng * 10 ** self._lgkwindow
+
+        # low one
+        sel_low = klow - a >= 0
+        flowk = InterpolatedUnivariateSpline(klow[sel_low] << 1 / u.Mpc, th0low[sel_low])
+
+        # high one
+        sel_up = kup - b <= 0
+        fhighk = InterpolatedUnivariateSpline(kup[sel_up] << 1 / u.Mpc, th0up[sel_up])
+
+        g = lambda k: fhighk(k) - flowk(k)
+        kcross = brentq(
+            g,
+            a.to_value(1 / u.Mpc),
+            b.to_value(1 / u.Mpc),
+            args=(),
+            xtol=2e-12,
+            rtol=8.881784197001252e-16,
+            maxiter=100,
+            full_output=False,
+            disp=True,
+        )
+
+        return kcross / u.Mpc
 
     @property
     def fitted(self) -> np.polynomial.Polynomial:
@@ -280,34 +312,28 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         lgks: np.ndarray = np.atleast_1d(np.log10(k.to_value(1 / u.Mpc)))
 
         abstheta0 = np.empty_like(lgks)
-        # TODO! what if it's not positive?
-        lowk = lgks < self._lgk_zerox  # point where change fits
-        abstheta0[lowk] = np.power(10, self._fitlowk(lgks[lowk]) / lgks[lowk]**2)
+
+        lowk = lgks < self._lgk_zerox.value  # point where change fits
+        abstheta0[lowk] = np.power(10, self._fitlowk(lgks[lowk]) / lgks[lowk] ** 2)
 
         highk = ~lowk
-        abstheta0[highk] = np.power(np.abs(self._fithighk(lgks[highk])), 1 / lgks[highk]**2)
+        abstheta0[highk] = np.power(np.abs(self._fithighk(lgks[highk])), 1 / lgks[highk] ** 2)
 
         return self._signk(lgks) * abstheta0
 
     # ===============================================================
     # Plot
 
-    def plot_theta0hat(self) -> plt.Figure:
-        """Plot :math:`\hat{\Theta}_0(|k|; \rho)`."""
-#         # evaluate lower approximation
-#         karr_ls = np.geomspace(self._kmin, self._kchng, self._knum) / u.Mpc
-#         ls = self.Theta0hatLS(self._scale_factor, karr_ls, integ_kw=self._integ_kw)
-# 
-#         # evaluate upper approximation
-#         karr_ss = np.geomspace(self._kchng, self._kmax, self._knum) / u.Mpc
-#         ss = self.Theta0hatSS(self._scale_factor, karr_ss, integ_kw=self._integ_kw)
+    def plot_theta0hat(self, fit=True) -> plt.Figure:
+        """Plot :math:`\hat{\Theta}_0(|k|; \rho)`.
 
-        karr_ls = np.geomspace(self._kmin, self._kchng, self._knum, endpoint=False) / u.Mpc
-        karr_ss = np.geomspace(self._kchng, self._kmax, self._knum) / u.Mpc
-
-        # and evaluate the fit
-        # x = np.concatenate((karr_ss, karr_ls)) << 1 / u.Mpc
-        # y = self(x)
+        Parameters
+        ----------
+        fit : bool, optional
+            Whether to plot the spline fit.
+        """
+        k = self._lgk.to(1 / u.Mpc)
+        lowk = k < self._kcross
 
         # plot
         fig: plt.Figure = plt.figure()
@@ -318,9 +344,11 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
             xscale="log",
             yscale="symlog",
         )
-        ax.scatter(karr_ls, self._theta0ls / self._As, label="ls", s=4)
-        ax.scatter(karr_ss, self._theta0ss / self._As, label="ss", s=5)
-        # ax.plot(x, y, ls=":", c="k")
+        ax.scatter(k[lowk], self._th0[lowk], label="ls", s=4)
+        ax.scatter(k[~lowk], self._th0[~lowk], label="ss", s=4)
+        if fit:
+            ax.plot(k, self(k), ls=":", c="k")
+
         ax.legend()
 
         return fig
@@ -352,7 +380,7 @@ def _r_s(a: N, /, Req: float, keq: float) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    out: N =  (
+    out: N = (
         (2.0 / 3.0)
         / keq
         * sqrt(6.0 / Req)
@@ -543,7 +571,7 @@ def _PhiBar(a: N, k: N, /, keq: float) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    out: N =  0.75 * (keq / k) ** 2 * (1 + a) / a ** 2 * _DeltaBarT(a)
+    out: N = 0.75 * (keq / k) ** 2 * (1 + a) / a ** 2 * _DeltaBarT(a)
     return out
 
 
