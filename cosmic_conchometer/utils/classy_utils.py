@@ -27,7 +27,10 @@ def _flatten_dict(d: dict) -> dict:
     return out
 
 
-# /def
+class CLASSConfigParser(configparser.ConfigParser):
+    def optionxform(self, optionxform: str) -> str:
+        """Return string as-is."""
+        return str(optionxform)
 
 
 def read_params_from_ini(filename: str) -> dict:
@@ -41,15 +44,12 @@ def read_params_from_ini(filename: str) -> dict:
     -------
     dict
     """
-    config = configparser.ConfigParser()
-    config.optionxform = str
+    config = CLASSConfigParser()
     config.read("input/parameters.ini")
 
-    params = _flatten_dict(config._sections.copy())
+    params = _flatten_dict({k: dict(config[k]) for k in config.sections()})
     return params
 
-
-# /def
 
 ##############################################################################
 # END

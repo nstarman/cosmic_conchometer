@@ -10,9 +10,11 @@ __email__ = "n[dot]starkman[at]mail.utoronto.ca"
 
 __all__ = [
     # modules
+    "boltzmann",
     "common",
     "data",
     "diffusion_distortion",
+    "initial_conditions",
     "utils",
     # objects
     "conf",
@@ -31,7 +33,7 @@ from ._astropy_init import *  # noqa: F401, F403  # isort:skip
 # ---------------------------------------------------------
 
 # PROJECT-SPECIFIC
-from . import common, data, diffusion_distortion, utils
+from . import boltzmann, common, data, diffusion_distortion, initial_conditions, utils
 from .common import *  # noqa: F401, F403
 from .config import conf
 from .setup_package import DATA_DIR

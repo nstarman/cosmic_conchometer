@@ -22,9 +22,9 @@ __all__ = [
 ##############################################################################
 # CODE
 
-ArrayLike = T.Union[float, np.float, np.complex, np.ndarray]
+ArrayLike = T.Union[float, np.number, np.ndarray]
 
-TArrayLike = T.TypeVar("TArrayLike", float, np.float, np.complex, np.ndarray)
+TArrayLike = T.TypeVar("TArrayLike", float, np.number, np.ndarray)
 
 ArrayLikeCallable = T.Callable[
     [ArrayLike],

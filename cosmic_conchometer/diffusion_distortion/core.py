@@ -51,18 +51,19 @@ class DiffusionDistortionBase(CosmologyDependent):
 
     """
 
+    _zvalid: T.Tuple[float, float]
+
     def __init__(
         self,
         cosmo: Cosmology,
         class_cosmo: CLASS,
-        zvalid=(None, 100),  # TODO! auto-determine if None
+        zvalid: T.Tuple[T.Optional[float], float] = (None, 100),
         *,
         AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
-        **kwargs,
+        **kwargs: T.Any,
     ) -> None:
         super().__init__(cosmo)
         self.class_cosmo = class_cosmo  # TODO? move to superclass
-        self._zvalid = zvalid
 
         # --- Ak --- #
         self.AkFunc: ArrayLikeCallable
@@ -86,11 +87,12 @@ class DiffusionDistortionBase(CosmologyDependent):
             th[k].flags.writeable = False
 
         # now that have z array, can fix unbounded min(zvalid)
-        if self._zvalid[0] is None:
-            self._zvalid = (th["z"][0], self._zvalid[1])
+        if zvalid[0] is None:
+            _zvalid = (th["z"][0], zvalid[1])
+        self._zvalid = _zvalid
 
         # rename and assign units
-        it = (
+        it: T.Tuple[T.Tuple[str, str, u.Unit], ...] = (
             ("conf. time [Mpc]", "conformal time", u.Mpc),
             ("kappa' [Mpc^-1]", "kappa'", 1 / u.Mpc),
             ("exp(-kappa)", "exp(-kappa)", 1),
@@ -109,82 +111,92 @@ class DiffusionDistortionBase(CosmologyDependent):
         for k in th.keys():
             th[k].flags.writeable = False
 
-    # /def
-
     # ===============================================================
 
     @property
-    def zvalid(self):
+    def zvalid(self) -> T.Tuple[float, float]:
         return self._zvalid
 
     @lazyproperty
-    def rhovalid(self):
+    def rhovalid(self) -> T.Tuple[float, float]:
         return (
             distances.rho_of.z(self.zvalid[0], zeq=self._zeq),
             distances.rho_of.z(self.zvalid[1], zeq=self._zeq),
         )
 
     @lazyproperty
-    def maxrhovalid(self):
-        return self.rhovalid[1]
+    def maxrhovalid(self) -> float:
+        rho: float = self.rhovalid[1]
+        return rho
 
     # --------
 
     @lazyproperty
-    def rho_eq(self):
-        return distances.rho_of.matter_radiation_equality  # := 1
+    def rho_eq(self) -> float:
+        rho: float = distances.rho_of.matter_radiation_equality  # := 1
+        return rho
 
     # --------
 
     @lazyproperty
-    def z_recombination(self):
+    def z_recombination(self) -> float:
         """z of peak of visibility function."""
-        return self.class_z[self.class_g.argmax()]
+        z: float = self.class_z[self.class_g.argmax()]
+        return z
 
     @lazyproperty
-    def rho_recombination(self):
+    def rho_recombination(self) -> float:
         """rho of peak of visibility function."""
-        return self.class_rho[self.class_g.argmax()]
+        rho: float = self.class_rho[self.class_g.argmax()]
+        return rho
 
     # --------------------------------------------
     # CLASS properties
 
     @property
-    def class_thermo(self):
+    def class_thermo(self) -> MappingProxyType:
         return self._class_thermo
 
     @property
-    def class_z(self):
-        return self._class_thermo["z"]
+    def class_z(self) -> np.ndarray:
+        z: np.ndarray = self._class_thermo["z"]
+        return z
 
     @property
-    def class_eta(self):
-        return self._class_thermo["conformal time"]
+    def class_eta(self) -> np.ndarray:
+        eta: np.ndarray = self._class_thermo["conformal time"]
+        return eta
 
     @property
-    def class_dk_dt(self):
-        return self._class_thermo["kappa'"]
+    def class_dk_dt(self) -> np.ndarray:
+        dkdt: np.ndarray = self._class_thermo["kappa'"]
+        return dkdt
 
     @property
-    def class_P(self):
+    def class_P(self) -> np.ndarray:
         """:math:`\bar{P_\gamma}^{CL}`"""
-        return self._class_thermo["exp(-kappa)"]
+        P: np.ndarray = self._class_thermo["exp(-kappa)"]
+        return P
 
     @property
-    def class_g(self):
-        return self._class_thermo["g"]
+    def class_g(self) -> np.ndarray:
+        g: np.ndarray = self._class_thermo["g"]
+        return g
 
     @property
-    def class_rho(self):
-        return self._class_thermo["rho"]
+    def class_rho(self) -> np.ndarray:
+        rho: np.ndarray = self._class_thermo["rho"]
+        return rho
 
     @lazyproperty
-    def class_rhomin(self):
-        return min(self.class_rho)
+    def class_rhomin(self) -> float:
+        rho: float = min(self.class_rho)
+        return rho
 
     @lazyproperty
-    def class_rhomax(self):
-        return max(self.class_rho)
+    def class_rhomax(self) -> float:
+        rho: float = max(self.class_rho)
+        return rho
 
     # ===============================================================
 
@@ -193,13 +205,10 @@ class DiffusionDistortionBase(CosmologyDependent):
         """Perform computation."""
         pass
 
-    # /def
-
     # ===============================================================
     # Convenience methods
 
-    @staticmethod
-    def set_AkFunc(value: T.Union[None, str, T.Callable]) -> T.Callable:
+    def set_AkFunc(self, value: T.Union[None, str, T.Callable]) -> T.Callable:
         """Set the default function used in A(k).
 
         Can be used as a contextmanager, same as `~.default_Ak`.
@@ -217,11 +226,9 @@ class DiffusionDistortionBase(CosmologyDependent):
         self.Akfunc: T.Callable = default_Ak.set(value)
         return self.Akfunc
 
-    # /def
-
     # ===============================================================
 
-    def plot_CLASS_points_distribution(self, density=False):
+    def plot_CLASS_points_distribution(self, density: bool = False) -> plt.Figure:
         """Plot the distribution of evaluation points."""
         fig = plt.figure()
         ax = fig.add_subplot()
@@ -241,9 +248,7 @@ class DiffusionDistortionBase(CosmologyDependent):
 
         return fig
 
-    # /def
-
-    def plot_zv_choice(self):
+    def plot_zv_choice(self) -> plt.Figure:
         """Plot ``z_v`` choice."""
         fig = plt.figure(figsize=(10, 4))
 
@@ -251,9 +256,8 @@ class DiffusionDistortionBase(CosmologyDependent):
         ax1 = fig.add_subplot(121, title=r"Choosing $z_V$", xlabel="z", ylabel=r"$g_\gamma^{CL}$")
 
         # z-valid
-        zVi, zVf = self.zvalid
-        if zVi == self.class_z[0]:
-            zVi = None
+        _zVi, zVf = self.zvalid
+        zVi = None if _zVi == self.class_z[0] else _zVi
         gbarCL_V = self.class_g[np.argmin(np.abs(self.class_z - zVf))]
 
         ind = self.class_g > 1e-18 / u.Mpc  # cutoff for plot clarity
@@ -273,7 +277,7 @@ class DiffusionDistortionBase(CosmologyDependent):
 
         ax2.plot(self.class_rho[ind], self.class_g[ind])
         if zVi is not None:
-            rhoVi = distances.rho_of.z(zVi, zeq=zeq)
+            rhoVi = distances.rho_of.z(zVi, zeq=self.z_eq)
             ax2.axvline(rhoVi, c="k", ls=":", label=fr"$\rho_i$={rhoVi:.2e}")
         ax2.axvline(rhoVf, c="k", ls=":", label=fr"$\rho_V$={rhoVf:.2e}")
         ax2.axhline(
@@ -283,11 +287,6 @@ class DiffusionDistortionBase(CosmologyDependent):
         ax2.legend()
 
         return fig
-
-    # /def
-
-
-# /class
 
 
 ##############################################################################

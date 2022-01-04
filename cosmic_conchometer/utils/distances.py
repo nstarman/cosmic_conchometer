@@ -63,8 +63,12 @@ def lambda_naught(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
     ----------
     cosmo : `~astropy.cosmology.Cosmology`
     **zeq_kw
-        kwargs into scipy minimizer. See `~scipy.optimize.brentq` for details.
+        kwargs into scipy minimizer. See :func:`~scipy.optimize.brentq` for
+        details.
 
+    Returns
+    -------
+    `~astropy.units.Quantity`
     """
     alphaobs: u.Quantity = alpha_observer(cosmo, **zeq_kw)
     lambda0: u.Quantity
@@ -72,10 +76,8 @@ def lambda_naught(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
     return lambda0 << u.Mpc
 
 
-# /def
-
-
 def _aeq(kw: T.Dict[str, T.Any]) -> TZ:
+    aeq: TZ
     if "aeq" in kw:
         aeq = kw["aeq"]
     elif "zeq" in kw:
@@ -84,8 +86,6 @@ def _aeq(kw: T.Dict[str, T.Any]) -> TZ:
         aeq = _A_Of.matter_radiation_equality(kw["cosmo"])
     return aeq
 
-
-# /def
 
 ##############################################################################
 
@@ -122,7 +122,6 @@ def z_matter_radiation_equality(
         The redshift at matter-radiation equality.
     tuple
         Full results of root finder if `full_output` is True
-
     """
     # THIRD PARTY
     from scipy.optimize import brentq
@@ -137,9 +136,6 @@ def z_matter_radiation_equality(
     z_eq: u.Quantity = zeq
 
     return z_eq if not full_output else (z_eq, rest)
-
-
-# /def
 
 
 class _Z_Of:
@@ -164,7 +160,6 @@ class _Z_Of:
         Returns
         -------
         z : array-like or quantity-like ['dimensionless']
-
         """
         aeq: TZ = _aeq(eq)
 
@@ -181,6 +176,9 @@ class _Z_Of:
         rho: array-like
         **eq : float or scalar `~astropy.units.Quantity`
             works with keys "aeq" or "zeq" or "cosmo"
+
+        Returns
+        -------
 
         """
         aeq: TZ = _aeq(eq)
@@ -238,7 +236,6 @@ class _Z_Of:
 
 
 z_of = _Z_Of()
-# /class
 
 
 ##############################################################################
@@ -251,7 +248,8 @@ class _A_Of:
     @staticmethod
     def z(z: TArrayLike) -> TArrayLike:
         """Scale factor from the redshift."""
-        return 1.0 / (z + 1.0)
+        a: TArrayLike = 1.0 / (z + 1.0)
+        return a
 
     @staticmethod
     def alpha(alpha: TArrayLike, aeq: TZ) -> TArrayLike:
@@ -308,7 +306,6 @@ class _A_Of:
 
 
 a_of = _A_Of()
-# class
 
 
 ##############################################################################
@@ -334,9 +331,6 @@ def alpha_observer(cosmo: Cosmology, **zeq_kw: T.Any) -> u.Quantity:
     zeq: u.Quantity = z_matter_radiation_equality(cosmo, **zeq_kw)
 
     return zeq + 1.0
-
-
-# /def
 
 
 class _Alpha_Of:
@@ -389,7 +383,6 @@ class _Alpha_Of:
 
 
 alpha_of = _Alpha_Of()
-# /class
 
 
 ##############################################################################
@@ -408,7 +401,7 @@ class _Rho_Of:
     @staticmethod
     def a(a: TArrayLike, **eq: float) -> TArrayLike:
         """rho from the scale factor."""
-        aeq: TZ = _aeq(eq)
+        aeq = _aeq(eq)
         rho: TArrayLike = np.sqrt((1.0 + a / aeq) / 2.0)
         return rho
 
@@ -440,7 +433,6 @@ class _Rho_Of:
 
 
 rho_of = _Rho_Of()
-# /class
 
 
 ##############################################################################

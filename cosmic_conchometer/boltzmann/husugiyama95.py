@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 
-"""Transfer Function."""
+"""Transfer Function from Hu and Sugiyama 1995 [1]_.
+
+References
+----------
+.. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
+       Background: an Analytic Approach. \apj, 444, 489.
+"""
 
 
 ##############################################################################
@@ -10,7 +16,6 @@
 import abc
 import typing as T
 from collections.abc import Mapping
-from numbers import Number
 
 # THIRD PARTY
 import astropy.constants as const
@@ -25,9 +30,10 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy.optimize import brentq
 
 # PROJECT-SPECIFIC
-from .base import N, TransferFunctionBase
+from .base import TransferFunctionBase
 from .utils import llc_integrand
 from cosmic_conchometer.common import CosmologyDependent
+from cosmic_conchometer.typing import ArrayLike as N
 
 __all__ = ["TransferFunctionHuSugiyama1995Theta0"]
 
@@ -80,9 +86,9 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
     _scale_factor: float
     _knum: int
-    _kmin: float
-    _kchng: float
-    _kmax: float
+    _kmin: u.Quantity
+    _kchng: u.Quantity
+    _kmax: u.Quantity
     _fit: np.polynomial.Polynomial
     _fit_info: T.Tuple
 
@@ -106,7 +112,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         # dimensionless radius  # TODO! recast as scale factor
         self._scale_factor = a
         if not np.isscalar(a):
-            raise ValueError(f"`R` must be a scalar, not {type(R)}.")
+            raise ValueError(f"`a` must be a scalar, not {type(a)}.")
 
         self._As = As
 
@@ -116,19 +122,23 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         self._knum = knum
 
         # evaluate lower approximation (overshoot kchange by lgkwindow)
+        karr_ls: u.Quantity
         karr_ls = np.geomspace(self._kmin, self._kchng * 10 ** lgkwindow, knum, endpoint=False)
-        ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
+        _ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
+        ls = T.cast(np.ndarray, _ls)  # TODO! fix type inference in Theta0hatLS
 
         # evaluate upper approximation (undershoot kchange by lgkwindow)
+        karr_ss: u.Quantity
         karr_ss = np.geomspace(self._kchng / 10 ** lgkwindow, self._kmax, knum)
-        ss = self.Theta0hatSS(a, karr_ss, integ_kw=integ_kw)
+        _ss = self.Theta0hatSS(a, karr_ss, integ_kw=integ_kw)
+        ss = T.cast(np.ndarray, _ss)  # TODO! fix type inference in Theta0hatSS
 
         self._kcross = self._find_kcross(karr_ls, ls, karr_ss, ss)
 
         lowk = karr_ls < self._kcross
         highk = karr_ss >= self._kcross
         # put the results together
-        lgk = np.log10(np.concatenate((karr_ls.value[lowk], karr_ss.value[highk]))) * u.dex(
+        lgk = np.log10(np.concatenate((karr_ls.value[lowk], karr_ss.value[highk]))) << u.dex(
             1 / u.Mpc
         )
         th0 = np.concatenate((ls[lowk], ss[highk])) / self._As
@@ -157,7 +167,9 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         th0adj2 = np.sign(th0[highk]) * np.power(np.abs(th0[highk]), lgk[highk].value ** 2)
         self._fithighk = InterpolatedUnivariateSpline(lgk[highk], th0adj2)
 
-    def _find_kcross(self, klow, th0low, kup, th0up):
+    def _find_kcross(
+        self, klow: np.ndarray, th0low: np.ndarray, kup: np.ndarray, th0up: np.ndarray
+    ) -> u.Quantity:
         # now spline them separately
         a = self._kchng / 10 ** self._lgkwindow
         b = self._kchng * 10 ** self._lgkwindow
@@ -183,7 +195,8 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
             disp=True,
         )
 
-        return kcross / u.Mpc
+        kx = kcross / u.Mpc
+        return kx
 
     @property
     def fitted(self) -> np.polynomial.Polynomial:
@@ -319,12 +332,13 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         highk = ~lowk
         abstheta0[highk] = np.power(np.abs(self._fithighk(lgks[highk])), 1 / lgks[highk] ** 2)
 
-        return self._signk(lgks) * abstheta0
+        theta0: N = self._signk(lgks) * abstheta0
+        return theta0
 
     # ===============================================================
     # Plot
 
-    def plot_theta0hat(self, fit=True) -> plt.Figure:
+    def plot_theta0hat(self, fit: bool = True) -> plt.Figure:
         """Plot :math:`\hat{\Theta}_0(|k|; \rho)`.
 
         Parameters
@@ -790,7 +804,7 @@ def _PhiG(a: N, k: N, /, Req: float, keq: float, h: float, Ob0: float, Om0: floa
     return out
 
 
-@llc_integrand
+@llc_integrand  # type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
 def _Ifunc_integrand(
     ap: float, args: T.Tuple[float, float, float, float, float, float, float]
 ) -> float:
@@ -932,7 +946,7 @@ def _Theta0hatSS(
     return theta0
 
 
-@llc_integrand
+@llc_integrand  # type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
 def _Theta0hatLS_integrand(
     ap: float, args: T.Tuple[float, float, float, float, float, float, float]
 ) -> float:

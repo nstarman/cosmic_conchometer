@@ -10,6 +10,7 @@ from __future__ import annotations
 # STDLIB
 import typing as T
 from abc import ABCMeta
+from collections.abc import Mapping
 
 # THIRD PARTY
 import astropy.constants as const
@@ -143,8 +144,6 @@ class default_Ak(ScienceState):
         Akfunc = cls._registry[name]
         return Akfunc
 
-    # /def
-
     @classmethod
     def validate(cls, value: T.Union[None, str, T.Callable]) -> fAkType:
         """Validate Ak function.
@@ -173,8 +172,6 @@ class default_Ak(ScienceState):
 
         return value
 
-    # /def
-
     @classmethod
     def register(
         cls,
@@ -198,11 +195,6 @@ class default_Ak(ScienceState):
             raise ValueError(f"cannot overwrite {name}")
         cls._registry[name] = AkFunc
 
-    # /def
-
-
-# /class
-
 
 #####################################################################
 
@@ -218,7 +210,7 @@ class CosmologyDependent(metaclass=ABCMeta):
 
     meta = MetaData()
 
-    def __init__(self, cosmo: Cosmology, *, meta=None):
+    def __init__(self, cosmo: Cosmology, *, meta: T.Optional[Mapping] = None):
         self._cosmo: Cosmology = cosmo  # the astropy cosmology
         self.meta.update(meta or {})
 
@@ -239,8 +231,9 @@ class CosmologyDependent(metaclass=ABCMeta):
         return self._lambda0
 
     @property
-    def z_eq(self):
-        return self._zeq
+    def z_eq(self) -> float:
+        zeq: float = self._zeq
+        return zeq
 
     # ===============================================================
     # stuff
@@ -268,11 +261,6 @@ class CosmologyDependent(metaclass=ABCMeta):
         """
         bb: u.Quantity = blackbody(frequency, self.Tcmb0)
         return bb
-
-    # /def
-
-
-# /class
 
 
 # -------------------------------------------------------------------
