@@ -555,7 +555,7 @@ def _N2Bar(a: N) -> N:
            Background: an Analytic Approach. \apj, 444, 489.
     """
     out: N = (
-        -0.1 * (20 * a * 19) / (3 * a + 4) * _UG(a)
+        -0.1 * (20 * a + 19) / (3 * a + 4) * _UG(a)
         - 8 / 3.0 * a / (3 * a + 4)
         + 8 / 9.0 * log(1 + 0.75 * a)
     )
