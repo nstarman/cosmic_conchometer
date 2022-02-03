@@ -58,7 +58,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
     ----------
     cosmo : `~astropy.cosmology.core.Cosmology` instance
     a : float
-        The scale factor.
+        The scale factor, normalized to be 1 at z=0.
     krange : |Quantity|
         The (lower, change, upper) bound in units of inverse Megaparsecs.
         'change' is the guessed 'k' to change between the two approximation
@@ -109,7 +109,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
         self._integ_kw = integ_kw or {}
 
-        # dimensionless radius  # TODO! recast as scale factor
+        # dimensionless radius
         self._scale_factor = a
         if not np.isscalar(a):
             raise ValueError(f"`a` must be a scalar, not {type(a)}.")
@@ -123,7 +123,12 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
         # evaluate lower approximation (overshoot kchange by lgkwindow)
         karr_ls: u.Quantity
-        karr_ls = np.geomspace(self._kmin, self._kchng * 10 ** lgkwindow, knum, endpoint=False)
+        karr_ls = np.geomspace(
+            self._kmin,
+            self._kchng * 10 ** lgkwindow,
+            knum,
+            endpoint=False,
+        )
         _ls = self.Theta0hatLS(a, karr_ls, integ_kw=integ_kw)
         ls = T.cast(np.ndarray, _ls)  # TODO! fix type inference in Theta0hatLS
 
@@ -138,8 +143,10 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         lowk = karr_ls < self._kcross
         highk = karr_ss >= self._kcross
         # put the results together
-        lgk = np.log10(np.concatenate((karr_ls.value[lowk], karr_ss.value[highk]))) << u.dex(
-            1 / u.Mpc
+        lgk = np.log10(
+            np.concatenate((karr_ls.value[lowk], karr_ss.value[highk])),
+        ) << u.dex(
+            1 / u.Mpc,
         )
         th0 = np.concatenate((ls[lowk], ss[highk])) / self._As
         self._lgk = lgk
@@ -164,11 +171,18 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         # fit at high k
         # theta0 adjusted to factor out the dominant k dependence (k^2)
         highk = slice(zerox_idx, None)
-        th0adj2 = np.sign(th0[highk]) * np.power(np.abs(th0[highk]), lgk[highk].value ** 2)
+        th0adj2 = np.sign(th0[highk]) * np.power(
+            np.abs(th0[highk]),
+            lgk[highk].value ** 2,
+        )
         self._fithighk = InterpolatedUnivariateSpline(lgk[highk], th0adj2)
 
     def _find_kcross(
-        self, klow: np.ndarray, th0low: np.ndarray, kup: np.ndarray, th0up: np.ndarray
+        self,
+        klow: np.ndarray,
+        th0low: np.ndarray,
+        kup: np.ndarray,
+        th0up: np.ndarray,
     ) -> u.Quantity:
         # now spline them separately
         a = self._kchng / 10 ** self._lgkwindow
@@ -176,13 +190,21 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
 
         # low one
         sel_low = klow - a >= 0
-        flowk = InterpolatedUnivariateSpline(klow[sel_low] << 1 / u.Mpc, th0low[sel_low])
+        flowk = InterpolatedUnivariateSpline(
+            klow[sel_low] << 1 / u.Mpc,
+            th0low[sel_low],
+        )
 
         # high one
         sel_up = kup - b <= 0
-        fhighk = InterpolatedUnivariateSpline(kup[sel_up] << 1 / u.Mpc, th0up[sel_up])
+        fhighk = InterpolatedUnivariateSpline(
+            kup[sel_up] << 1 / u.Mpc,
+            th0up[sel_up],
+        )
 
-        g = lambda k: fhighk(k) - flowk(k)
+        def g(k):
+            return fhighk(k) - flowk(k)
+
         kcross = brentq(
             g,
             a.to_value(1 / u.Mpc),
@@ -235,13 +257,15 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         k_eq = sqrt(2 * self.cosmo.Om0 * self.cosmo.H0 ** 2 * a0) / const.c
         return k_eq.to(1 / u.Mpc)
 
-    def Theta0hatSS(self, a: N, k: u.Quantity, *, integ_kw: T.Optional[Mapping] = None) -> N:
+    def Theta0hatSS(
+        self, a: N, k: u.Quantity, *, integ_kw: T.Optional[Mapping] = None
+    ) -> N:
         r""":math:`\hat{\Theta}_0`, from Hu and Sugyiama [1]_, eqn. D-1.
 
         Parameters
         ----------
         a : scalar or array-like
-            The scale factor.  # TODO! recast as rho
+            The scale factor, normalized to be 1 at z=0.
         k : |Quantity|
             In units of inverse Megaparsec.
         integ_kw : mapping or None (optional, keyword-only)
@@ -259,24 +283,28 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
                Microwave Background: an Analytic Approach. \apj, 444, 489.
         """
         ss: N = _Theta0hatSS(
-            a,
+            a * (1 + self.z_eq),
             k.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             Req=self.Req,
-            keq=self.keq.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
+            # * const.c.to_value(u.km / u.s),
+            keq=self.keq.to_value(1 / u.Mpc),
             h=self.cosmo.h,
             Ob0=self.cosmo.Ob0,
             Om0=self.cosmo.Om0,
-            integ_kw=integ_kw or self._integ_kw,  # use default if integ_kw is None
+            integ_kw=integ_kw
+            or self._integ_kw,  # use default if integ_kw is None
         )
         return self._As * ss
 
-    def Theta0hatLS(self, a: N, k: u.Quantity, *, integ_kw: T.Optional[Mapping] = None) -> N:
+    def Theta0hatLS(
+        self, a: N, k: u.Quantity, *, integ_kw: T.Optional[Mapping] = None
+    ) -> N:
         """:math:`\hat{\Theta}_0`, from Hu and Sugyiama [1]_, eqn. D-6.
 
         Parameters
         ----------
         a : scalar or array-like
-            The scale factor.  # TODO! recast as rho
+            The scale factor, normalized to be 1 at z=0.
         k : |Quantity|
             In units of inverse Megaparsec.
         integ_kw : mapping or None (optional, keyword-only)
@@ -294,14 +322,16 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
                Microwave Background: an Analytic Approach. \apj, 444, 489.
         """
         ls: N = _Theta0hatLS(
-            a,
+            a * (1 + self.z_eq),
             k.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
             Req=self.Req,
-            keq=self.keq.to_value(1 / u.Mpc),  # * const.c.to_value(u.km / u.s),
+            # * const.c.to_value(u.km / u.s),
+            keq=self.keq.to_value(1 / u.Mpc),
             h=self.cosmo.h,
             Ob0=self.cosmo.Ob0,
             Om0=self.cosmo.Om0,
-            integ_kw=integ_kw or self._integ_kw,  # use default if integ_kw is None
+            integ_kw=integ_kw
+            or self._integ_kw,  # use default if integ_kw is None
         )
         return self._As * ls
 
@@ -327,10 +357,16 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         abstheta0 = np.empty_like(lgks)
 
         lowk = lgks < self._lgk_zerox.value  # point where change fits
-        abstheta0[lowk] = np.power(10, self._fitlowk(lgks[lowk]) / lgks[lowk] ** 2)
+        abstheta0[lowk] = np.power(
+            10,
+            self._fitlowk(lgks[lowk]) / lgks[lowk] ** 2,
+        )
 
         highk = ~lowk
-        abstheta0[highk] = np.power(np.abs(self._fithighk(lgks[highk])), 1 / lgks[highk] ** 2)
+        abstheta0[highk] = np.power(
+            np.abs(self._fithighk(lgks[highk])),
+            1 / lgks[highk] ** 2,
+        )
 
         theta0: N = self._signk(lgks) * abstheta0
         return theta0
@@ -338,7 +374,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
     # ===============================================================
     # Plot
 
-    def plot_theta0hat(self, fit: bool = True) -> plt.Figure:
+    def plot_theta0hat(self, fit: bool = True, s=4) -> plt.Figure:
         """Plot :math:`\hat{\Theta}_0(|k|; \rho)`.
 
         Parameters
@@ -358,10 +394,10 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
             xscale="log",
             yscale="symlog",
         )
-        ax.scatter(k[lowk], self._th0[lowk], label="ls", s=4)
-        ax.scatter(k[~lowk], self._th0[~lowk], label="ss", s=4)
         if fit:
-            ax.plot(k, self(k), ls=":", c="k")
+            ax.plot(k, self(k), ls="-", c="k")
+        ax.scatter(k[lowk], self._th0[lowk], label="ls", s=s)
+        ax.scatter(k[~lowk], self._th0[~lowk], label="ss", s=s)
 
         ax.legend()
 
@@ -398,7 +434,9 @@ def _r_s(a: N, /, Req: float, keq: float) -> N:
         (2.0 / 3.0)
         / keq
         * sqrt(6.0 / Req)
-        * log((sqrt(1.0 + a * Req) + sqrt(Req * (1.0 + a))) / (1.0 + sqrt(Req)))
+        * log(
+            (sqrt(1.0 + a * Req) + sqrt(Req * (1.0 + a))) / (1.0 + sqrt(Req)),
+        )
     )
     return out
 
@@ -484,7 +522,9 @@ def _transfer(k: N, h: float, Ob0: float, Om0: float) -> N:
            Microwave Background: an Analytic Approach. \apj, 444, 489.
     """
     q: N = _qfunc(k, h=h, Ob0=Ob0, Om0=Om0)
-    qpows: N = 1 + 3.89 * q + (14.1 * q) ** 2 + (5.46 * q) ** 3 + (6.71 * q) ** 4
+    qpows: N = (
+        1 + 3.89 * q + (14.1 * q) ** 2 + (5.46 * q) ** 3 + (6.71 * q) ** 4
+    )
     out: N = (log(1 + 2.34 * q) / (2.34 * q)) / sqrt(sqrt(qpows))
     return out
 
@@ -496,7 +536,7 @@ def _UG(a: N) -> N:
     Parameters
     ----------
     a : scalar or array-like
-        The scale factor.
+        The scale factor, normalized to be 1 at zeq.
 
     Returns
     -------
@@ -508,7 +548,9 @@ def _UG(a: N) -> N:
     .. [1] Hu, W., & Sugiyama, N. (1995). Anisotropies in the Cosmic Microwave
            Background: an Analytic Approach. \apj, 444, 489.
     """
-    out: N = (9 * a ** 3 + 2 * a ** 2 - 8 * a - 16 + 16 * sqrt(1 + a)) / (9 * a * (1 + a))
+    out: N = (9 * a ** 3 + 2 * a ** 2 - 8 * a - 16 + 16 * sqrt(1 + a)) / (
+        9 * a * (1 + a)
+    )
     return out
 
 
@@ -519,7 +561,7 @@ def _DeltaBarT(a: N) -> N:
     Parameters
     ----------
     a : scalar or array-like
-        The scale factor.
+        The scale factor, normalized to be 1 at zeq.
 
     Returns
     -------
@@ -542,7 +584,7 @@ def _N2Bar(a: N) -> N:
     Parameters
     ----------
     a : scalar or array-like
-        The scale factor.
+        The scale factor, normalized to be 1 at zeq.
 
     Returns
     -------
@@ -569,7 +611,7 @@ def _PhiBar(a: N, k: N, /, keq: float) -> N:
     Parameters
     ----------
     a : scalar or array-like
-        Scale factor.
+        Scale factor, normalized to be 1 at zeq.
     k : scalar or array-like
         Value in units of inverse Megaparsec.
     keq : float
@@ -653,7 +695,9 @@ def _Phi(a: N, k: N, /, keq: float, h: float, Ob0: float, Om0: float) -> N:
            Background: an Analytic Approach. \apj, 444, 489.
     """
     T: N = _transfer(k, h=h, Ob0=Ob0, Om0=Om0)
-    out: N = _PhiBar(a, k, keq=keq) * (T + (1 - T) * exp(-alpha1 * (a * k / keq) ** beta))
+    out: N = _PhiBar(a, k, keq=keq) * (
+        T + (1 - T) * exp(-alpha1 * (a * k / keq) ** beta)
+    )
     return out
 
 
@@ -688,7 +732,9 @@ def _Psi(a: N, k: N, /, keq: float, h: float, Ob0: float, Om0: float) -> N:
            Background: an Analytic Approach. \apj, 444, 489.
     """
     temp: N = _transfer(k, h=h, Ob0=Ob0, Om0=Om0)
-    out: N = _PsiBar(a, k, keq=keq) * (temp + (1 - temp) * exp(-alpha2 * (a * k / keq) ** beta))
+    out: N = _PsiBar(a, k, keq=keq) * (
+        temp + (1 - temp) * exp(-alpha2 * (a * k / keq) ** beta)
+    )
     return out
 
 
@@ -764,7 +810,16 @@ def _Theta00(k: N, /, keq: float) -> N:
 
 
 @numba.njit  # TODO! confirm this equation. It's different
-def _PhiG(a: N, k: N, /, Req: float, keq: float, h: float, Ob0: float, Om0: float) -> N:
+def _PhiG(
+    a: N,
+    k: N,
+    /,
+    Req: float,
+    keq: float,
+    h: float,
+    Ob0: float,
+    Om0: float,
+) -> N:
     r"""Hu and Sugyiama [1]_, eqn. D-4.
 
     Parameters
@@ -796,7 +851,9 @@ def _PhiG(a: N, k: N, /, Req: float, keq: float, h: float, Ob0: float, Om0: floa
            Background: an Analytic Approach. \apj, 444, 489.
     """
     factor = 3.0 / 32.0 * (keq / k) ** 2 * Req
-    term0 = power(1 + a * Req, -1.25) * (1 + factor * (2 - Req) + (1 + factor) * a * Req)
+    term0 = power(1 + a * Req, -1.25) * (
+        1 + factor * (2 - Req) + (1 + factor) * a * Req
+    )
     term1 = power(1 + a * Req, 0.75)
     phi = _Phi(a, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
     psi = _Psi(a, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
@@ -804,9 +861,11 @@ def _PhiG(a: N, k: N, /, Req: float, keq: float, h: float, Ob0: float, Om0: floa
     return out
 
 
-@llc_integrand  # type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
+# type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
+@llc_integrand
 def _Ifunc_integrand(
-    ap: float, args: T.Tuple[float, float, float, float, float, float, float]
+    ap: float,
+    args: T.Tuple[float, float, float, float, float, float, float],
 ) -> float:
     r"""Hu and Sugyiama [1]_, eqn. D-3.
 
@@ -889,7 +948,10 @@ def _Ifunc(
     """
     args: T.Tuple[float, float, float, float, float, float, float]
     args = (a, k, Req, keq, h, Ob0, Om0)
-    out: N = sqrt(2 / 3 / Req) * integ.quad(_Ifunc_integrand, 0, a, args=args, **integ_kw)[0]
+    out: N = (
+        sqrt(2 / 3 / Req)
+        * integ.quad(_Ifunc_integrand, 0, a, args=args, **integ_kw)[0]
+    )
     return out
 
 
@@ -936,7 +998,16 @@ def _Theta0hatSS(
            Background: an Analytic Approach. \apj, 444, 489.
     """
     phi: N = _Phi(a, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
-    ival: N = _Ifunc(a, k, Req=Req, keq=keq, h=h, Ob0=Ob0, Om0=Om0, integ_kw=integ_kw)
+    ival: N = _Ifunc(
+        a,
+        k,
+        Req=Req,
+        keq=keq,
+        h=h,
+        Ob0=Ob0,
+        Om0=Om0,
+        integ_kw=integ_kw,
+    )
     rs: N = _r_s(a, Req=Req, keq=keq)
     theta0: N = -phi + (
         ival
@@ -946,9 +1017,11 @@ def _Theta0hatSS(
     return theta0
 
 
-@llc_integrand  # type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
+# type: ignore  # diff btwn tuple[float, ...] & tuple[float, float]
+@llc_integrand
 def _Theta0hatLS_integrand(
-    ap: float, args: T.Tuple[float, float, float, float, float, float, float]
+    ap: float,
+    args: T.Tuple[float, float, float, float, float, float, float],
 ) -> float:
     r"""Hu and Sugyiama [1]_, eqn. D-6.
 
@@ -981,7 +1054,9 @@ def _Theta0hatLS_integrand(
     rps: float = _r_s(ap, Req=Req, keq=keq)
     phi: float = _Phi(ap, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
     psi: float = _Psi(ap, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
-    out: float = keq * Req * sqrt((1 + ap) / 2) * (phi - psi) * sin(k * (rs - rps))
+    out: float = (
+        keq * Req * sqrt((1 + ap) / 2) * (phi - psi) * sin(k * (rs - rps))
+    )
     return out
 
 
@@ -1035,7 +1110,8 @@ def _Theta0hatLS(
     val = integ.quad(_Theta0hatLS_integrand, 0.0, a, args=args, **integ_kw)[0]
     theta0: N = (
         -_Phi(a, k, keq=keq, h=h, Ob0=Ob0, Om0=Om0)
-        + (_Theta00(k, keq=keq) + _PhiBar0(k, keq=keq)) * cos(k * _r_s(a, Req=Req, keq=keq))
+        + (_Theta00(k, keq=keq) + _PhiBar0(k, keq=keq))
+        * cos(k * _r_s(a, Req=Req, keq=keq))
         + k / sqrt(3) * val
     )
     return theta0

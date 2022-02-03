@@ -45,7 +45,9 @@ def test_TArrayLike():
     assert typing.TArrayLike.__class__ == T.TypeVar
 
     # contents
-    assert set(typing.TArrayLike.__constraints__) == set(T.get_args(typing.ArrayLike))
+    assert set(typing.TArrayLike.__constraints__) == set(
+        T.get_args(typing.ArrayLike),
+    )
 
 
 # /def

@@ -2,7 +2,12 @@
 
 """Spectral Distortion."""
 
-__all__ = ["SpectralDistortion"]
+__all__ = [
+    "SpectralDistortion",
+    "make_secondlast_scattering_integration_domain",
+    "sprpP_on_grid",
+    "fit_smooth_sP_on_grid",
+]
 
 
 ##############################################################################
@@ -13,6 +18,7 @@ import typing as T
 
 # THIRD PARTY
 import astropy.units as u
+import matplotlib.colors as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.integrate as integ
@@ -24,41 +30,18 @@ from matplotlib.colors import Normalize
 from matplotlib.widgets import Button, Slider, TextBox
 from numpy import absolute, arctan2, array, nan_to_num, sqrt
 from scipy.interpolate import InterpolatedUnivariateSpline as IUS
+from scipy.interpolate import RectBivariateSpline
 from scipy.signal import find_peaks
 from scipy.special import xlogy
 from shapely.geometry import Point, Polygon
 
 # PROJECT-SPECIFIC
-from .core import DiffusionDistortionBase
+from .core import DiffusionDistortionBase, rho2_of_rho1
 from cosmic_conchometer.typing import ArrayLike, ArrayLikeCallable
 from cosmic_conchometer.utils import distances
 
 ##############################################################################
 # CODE
-##############################################################################
-
-
-def rho2_of_rho1(
-    rho1: ArrayLike, spll: ArrayLike, sprp: ArrayLike, maxrhovalid: ArrayLike
-) -> ArrayLike:
-    """:math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`
-
-    TODO! move to utils
-
-    Parameters
-    ----------
-    rho1 : float
-    spll, sprp : float
-    maxrhovalid : float
-
-    Returns
-    -------
-    float
-    """
-    rho2: ArrayLike = rho1 - sqrt((spll + rho1 - maxrhovalid) ** 2 + sprp ** 2)
-    return rho2
-
-
 ##############################################################################
 
 
@@ -83,7 +66,9 @@ class SpectralDistortion(DiffusionDistortionBase):
         AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
         **kwargs: T.Any,
     ) -> None:
-        super().__init__(cosmo=cosmo, class_cosmo=class_cosmo, AkFunc=AkFunc, **kwargs)
+        super().__init__(
+            cosmo=cosmo, class_cosmo=class_cosmo, AkFunc=AkFunc, **kwargs
+        )
 
         # ---------------------------------------
         # splines & related
@@ -93,7 +78,9 @@ class SpectralDistortion(DiffusionDistortionBase):
         self._spl_PbarCL = IUS(rho, self.class_P, ext=2)
         self._spl_dk_dt = IUS(rho, self.class_dk_dt, ext=2)
         self._spl_gbarCL = IUS(
-            rho, self.class_g, ext=1
+            rho,
+            self.class_g,
+            ext=1,
         )  # ext 1 makes stuff 0  # TODO! does this introduce a discontinuity?
 
         # derivatives wrt rho  # TODO! plot out to make sure they look good
@@ -135,7 +122,12 @@ class SpectralDistortion(DiffusionDistortionBase):
         """
         raise NotImplementedError("TODO!")
 
-    def _sprpP_boundary_terms(self, rho1: float, spll: float, sprp: float) -> float:
+    def _sprpP_boundary_terms(
+        self,
+        rho1: float,
+        spll: float,
+        sprp: float,
+    ) -> float:
         """Boundary terms for s⟂P(s∥, s⟂) integration-by-parts.
 
         Parameters
@@ -155,10 +147,15 @@ class SpectralDistortion(DiffusionDistortionBase):
         dkdt = self._spl_dk_dt(rho1)
 
         U = dkdt * gbarCL
-        s2V = -nan_to_num(sprp ** 2 * delta / s2) + 1.5 * sprp * arctan2(delta, sprp)
+        s2V = -nan_to_num(sprp ** 2 * delta / s2) + 1.5 * sprp * arctan2(
+            delta,
+            sprp,
+        )
 
         sUp = (sprp * self._spl_d2k_dtdrho(rho1) * gbarCL) + (
-            dkdt * self._spl_d1gbarCL(rho2) * (sprp - nan_to_num(sprp * delta / s))
+            dkdt
+            * self._spl_d1gbarCL(rho2)
+            * (sprp - nan_to_num(sprp * delta / s))
         )
         sW = 1.5 * delta * arctan2(delta, sprp) - xlogy(sprp, s2)
 
@@ -166,7 +163,11 @@ class SpectralDistortion(DiffusionDistortionBase):
         return bound
 
     def _sprpP_integrand(
-        self, rho1: ArrayLike, spll: ArrayLike, sprp: ArrayLike, abs: bool = False
+        self,
+        rho1: ArrayLike,
+        spll: ArrayLike,
+        sprp: ArrayLike,
+        abs: bool = False,
     ) -> ArrayLike:
         """Integrand for s⟂P(s∥, s⟂) integration-by-parts.
 
@@ -195,7 +196,8 @@ class SpectralDistortion(DiffusionDistortionBase):
             * (sprp - nan_to_num((sprp * delta) / s))
             + self._spl_dk_dt(rho1)
             * (
-                self._spl_d2gbarCL(rho2) * (sqrt(sprp) - nan_to_num((sqrt(sprp) * delta) / s)) ** 2
+                self._spl_d2gbarCL(rho2)
+                * (sqrt(sprp) - nan_to_num((sqrt(sprp) * delta) / s)) ** 2
                 - d1gbarCL_val * nan_to_num(sprp / s) ** 3
             )
         )
@@ -231,7 +233,9 @@ class SpectralDistortion(DiffusionDistortionBase):
         """
         bounds = self.rhovalid if bounds is None else bounds
 
-        x = self.class_rho[(bounds[0] <= self.class_rho) & (self.class_rho <= bounds[1])]
+        x = self.class_rho[
+            (bounds[0] <= self.class_rho) & (self.class_rho <= bounds[1])
+        ]
         vals = self._sprpP_integrand(x, spll, sprp, abs=True)
         pospeaks, posprops = find_peaks(vals, **(peakskw or {}))
         negpeaks, negprops = find_peaks(-vals, **(peakskw or {}))
@@ -243,8 +247,8 @@ class SpectralDistortion(DiffusionDistortionBase):
                     self.class_rho[pospeaks],
                     self.class_rho[negpeaks],
                     [bounds[1]],
-                )
-            )
+                ),
+            ),
         )
         peaks.sort()  # in-place
 
@@ -260,7 +264,7 @@ class SpectralDistortion(DiffusionDistortionBase):
                     **(integkw or {}),
                 )
                 for (lb, ub) in zip(peaks[:-1], peaks[1:])
-            ]
+            ],
         ).T
 
         absress, errs = np.array(
@@ -274,7 +278,7 @@ class SpectralDistortion(DiffusionDistortionBase):
                     **(integkw or {}),
                 )
                 for (lb, ub) in zip(peaks[:-1], peaks[1:])
-            ]
+            ],
         ).T
 
         res = ress.sum()
@@ -312,7 +316,9 @@ class SpectralDistortion(DiffusionDistortionBase):
         rel_err : float
             The relative error.
         """
-        prefactor = 3 * self.lambda0 ** 2 / (8 * self._spl_PbarCL(self.maxrhovalid))
+        prefactor = (
+            3 * self.lambda0 ** 2 / (8 * self._spl_PbarCL(self.maxrhovalid))
+        )
 
         # boundary terms
         bounds = self.rhovalid if bounds is None else bounds
@@ -320,122 +326,14 @@ class SpectralDistortion(DiffusionDistortionBase):
         lb = self._sprpP_boundary_terms(bounds[0], spll, sprp)
 
         integral, err, rel_err, _ = self._sprpP_integral(
-            spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
+            spll,
+            sprp,
+            bounds=bounds,
+            peakskw=peakskw,
+            integkw=integkw,
         )
 
         return prefactor * (ub - lb + integral), prefactor * err, rel_err
-
-    @staticmethod
-    def make_secondlast_scattering_integration_domain(Splls, Sprps, sprpP, threshold=1e-4, buffer=0.2):
-        """Get the set of points in spll, sprp s.t. results > threshold.
-
-        Parameters
-        ----------
-        Splls : (N, M) ndarray
-            The spll coordinates as a meshgrid of shape (spll, sprp)
-        Sprps : (N, M) ndarray
-            The sprp coordinates as a meshgrid of shape (spll, sprp)
-        results : (N, M) ndarray
-            :math:`s_{\perp} P(s_{||}, s_{\perp})` over the meshgrid
-        threshold : float, optional
-            The minimum value in ``results`` to be kept.
-            This defines the unbuffered shape.
-        buffer : float
-            The distance about the threshold-shape to buffer.
-            This is in linear spll, sprp coordinates with a Euclidean metric.
-
-        Returns
-        -------
-        `shapely.geometry.Polygon`
-        """
-        from shapely.geometry import Polygon
-        
-        lefts, rights = [], []
-        for j, sprp in enumerate(Sprps[0, :]):
-            where = np.where(sprpP[:, j] > threshold)[0]
-            if not np.any(where):
-                continue
-            imin, imax = where[[0, -1]]
-            lefts.append((Splls[imin, j], sprp))
-            rights.append((Splls[imax, j], sprp))
-        
-        lefts = np.array(lefts)
-        rights = np.array(rights)
-        
-        exterior = np.concatenate((lefts, rights[::-1]))
-        
-        poly = Polygon(shell=exterior)
-        domain = poly.buffer(buffer)
-        
-        return domain
-
-    def sprpP_on_grid(
-        self,
-        splls: np.ndarray,
-        sprps: np.ndarray,
-        bounds: T.Optional[T.Tuple[float, float]] = None,
-        *,
-        peakskw: T.Dict[str, T.Any] = dict(prominence=1e-7),
-        integkw: T.Dict[str, T.Any] = dict(epsabs=1e-11, limit=500),
-        domain: T.Optional[Polygon] = None,
-    ) -> None:
-        """Calculate  :math:`s_{\perp}\mathcal{P}(s_{||},s_{\perp})`.
-
-        The calculated result is saved to an npz file.
-
-        Parameters
-        ----------
-        splls : (N,) ndarray
-            Array of :math:`s_{||}`. Built into a meshgrid with ``sprps``.
-        sprps : (M,) ndarray
-            Array of :math:`s_{\perp}`. Built into a meshgrid with ``splls``.
-        bounds : tuple[float, float] or None, optional
-            The bounds of integration. If `None` (default) uses
-            :attr:`~SpectralDistortion.rhovalid`, buffering the upper bound by 3.
-        """
-        # make meshgrid
-        Sprps, Splls = np.meshgrid(sprps, splls)
-
-        # Define bounds of integration. Build default, if None.
-        bounds = (self.rhovalid[0], self.maxrhovalid + 3) if bounds is None else bounds
-        bounds = T.cast(T.Tuple[float, float], bounds)
-
-        num: int = len(Splls.flat)
-        results: np.ndarray = np.full(num, np.NaN, dtype=float)
-        errors: np.ndarray = np.full(num, np.NaN, dtype=float)
-        relative_errors: np.ndarray = np.full(num, np.NaN, dtype=float)
-
-        i: int
-        spll: float
-        sprp: float
-        for i, (spll, sprp) in tqdm.tqdm(enumerate(zip(Splls.flat, Sprps.flat)), total=num):
-
-            # check if the point is within the mask
-            if domain is not None and not domain.contains(Point(spll, sprp)):
-                continue
-
-            # TODO! test upper bound doesn't matter so much, so long as upper > rhoV
-            res, err, rel_err = self.sprpP(
-                spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
-            )
-
-            results[i] = res.value
-            errors[i] = err.value
-            relative_errors[i] = rel_err
-
-        # save mesh, sprpP integral, associated errors, and other info.
-        np.savez(
-            f"output/run-bounds_{bounds}-integkw_{integkw.items()}.npz",
-            Splls=Splls,
-            Sprps=Sprps,
-            results=results,
-            errors=errors,
-            relative_errors=relative_errors,
-            bounds=np.array(list(bounds)),
-        )
-
-    def fit_smooth_sP(self):
-        pass
 
     # ===============================================================
     # Convenience Methods
@@ -485,7 +383,10 @@ class SpectralDistortion(DiffusionDistortionBase):
     # PLOT
 
     def plot_rho2(
-        self, rho1: float = None, splls: np.ndarray = None, sprps: np.ndarray = None
+        self,
+        rho1: float = None,
+        splls: np.ndarray = None,
+        sprps: np.ndarray = None,
     ) -> plt.Figure:
         """Plot :math:`\rho_2(s_{||}, s_{\perp}; \rho_1)`.
 
@@ -519,11 +420,23 @@ class SpectralDistortion(DiffusionDistortionBase):
         plt.subplots_adjust(bottom=0.25)
 
         cnorm = Normalize(vmin=-4, vmax=1.5)
-        scat = ax.scatter(Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm)
-        ax.axvline(rhov - self.rho_recombination, c="k", label=r"$\rho_{valid}^{\max}-\rho_{R}$")
+        scat = ax.scatter(
+            Splls,
+            Sprps,
+            c=rho2_of_rho1(rho1, Splls, Sprps, rhov),
+            s=30,
+            norm=cnorm,
+        )
+        ax.axvline(
+            rhov - self.rho_recombination,
+            c="k",
+            label=r"$\rho_{valid}^{\max}-\rho_{R}$",
+        )
         plt.colorbar(scat)
 
-        ax.set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
+        ax.set_title(
+            r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$",
+        )
         ax.set_xlabel(r"$s_{||}$", fontsize=15)
         ax.set_ylabel(r"$s_{\perp}$", fontsize=15)
         ax.legend()
@@ -534,19 +447,31 @@ class SpectralDistortion(DiffusionDistortionBase):
         axcolor = "lightgoldenrodyellow"
         axrho = plt.axes([0.12, 0.10, 0.65, 0.03], facecolor=axcolor)
 
-        srho = Slider(axrho, r"$\rho_1$", self.class_rho.min(), self.class_rho.max(), valinit=rho1)
+        srho = Slider(
+            axrho,
+            r"$\rho_1$",
+            self.class_rho.min(),
+            self.class_rho.max(),
+            valinit=rho1,
+        )
 
         def update(val: T.Any) -> None:
             rho1 = srho.val
             scat = ax.scatter(
-                Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm
+                Splls,
+                Sprps,
+                c=rho2_of_rho1(rho1, Splls, Sprps, rhov),
+                s=30,
+                norm=cnorm,
             )
             ax.axvline(
                 rhov - self.rho_recombination,
                 c="k",
                 label=r"$\rho_{valid}^{\max}-\rho_{R}$",
             )
-            ax.set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
+            ax.set_title(
+                r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$",
+            )
             # scat.set_facecolor(rho2_of_rho1(rho1, Splls, Sprps, rhov))
             # fig.axes[0].set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
             fig.canvas.draw_idle()
@@ -559,14 +484,20 @@ class SpectralDistortion(DiffusionDistortionBase):
         def submit(strval: str) -> None:
             rho1 = float(strval)
             scat = ax.scatter(
-                Splls, Sprps, c=rho2_of_rho1(rho1, Splls, Sprps, rhov), s=30, norm=cnorm
+                Splls,
+                Sprps,
+                c=rho2_of_rho1(rho1, Splls, Sprps, rhov),
+                s=30,
+                norm=cnorm,
             )
             ax.axvline(
                 rhov - self.rho_recombination,
                 c="k",
                 label=r"$\rho_{valid}^{\max}-\rho_{R}$",
             )
-            ax.set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
+            ax.set_title(
+                r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$",
+            )
             # scat.set_facecolor(rho2_of_rho1(rho1, Splls, Sprps, rhov))
             # fig.axes[0].set_title(r"$\rho_2(\rho_1 =" + f"{rho1:.3}" + r", s_{||}, s_{\perp}))$")
             fig.canvas.draw_idle()
@@ -591,7 +522,6 @@ class SpectralDistortion(DiffusionDistortionBase):
         bounds: T.Optional[T.Tuple[float, float]] = None,
         peakskw: T.Optional[T.Dict[str, T.Any]] = None,
         integkw: T.Optional[T.Dict[str, T.Any]] = None,
-        pdfmetadata: T.Optional[T.Dict[str, T.Any]] = None,
     ) -> plt.Figure:
         """Plot s⟂P(s∥, s⟂) integrand.
 
@@ -604,12 +534,12 @@ class SpectralDistortion(DiffusionDistortionBase):
             Keyword arguments for `scipy.signal.find_peaks`.
         integkw : dict[str, Any] or None (optional, keyword-only)
             Keyword arguments for `scipy.integrate.quad`.
-        pdfmetadata : dict[str, Any] or None (optional, keyword-only)
-            Metadata for saved PDF file.
 
         Returns
         -------
-        `~matplotlib.pyplot.Figure`
+        fig : `~matplotlib.pyplot.Figure`
+        metadata : dict
+            All the input parameters. Useful for metadata in PDFPages.
         """
         # create figure and axes
         fig = plt.figure(figsize=(12, 4))
@@ -648,7 +578,11 @@ class SpectralDistortion(DiffusionDistortionBase):
         # evaluate integrand
         vals = self._sprpP_integrand(self.class_rho, spll, sprp)
         res, err, rel_err, peaks = self._sprpP_integral(
-            spll, sprp, bounds=bounds, peakskw=peakskw, integkw=integkw
+            spll,
+            sprp,
+            bounds=bounds,
+            peakskw=peakskw,
+            integkw=integkw,
         )
 
         # left-bound plot
@@ -659,18 +593,252 @@ class SpectralDistortion(DiffusionDistortionBase):
 
         # interesting plot
         ax2.plot(self.class_rho, vals)
-        ax2.axvline(peaks[1], color="k", alpha=0.7, ls=":", label="extrama(|f(x)|)")
-        [ax2.axvline(peak, color="k", alpha=0.7, ls=":") for peak in peaks[2:-1]]
+        ax2.axvline(
+            peaks[1],
+            color="k",
+            alpha=0.7,
+            ls=":",
+            label="extrama(|f(x)|)",
+        )
+        [
+            ax2.axvline(peak, color="k", alpha=0.7, ls=":")
+            for peak in peaks[2:-1]
+        ]
         ax2.set_xlim(peaks[1] - 0.1, peaks[-2] + 0.1)
         ax2.legend()
 
         # right-bound plot
         ax3.plot(self.class_rho, vals)
-        ax3.axvline(peaks[-1], color="k", alpha=0.7, ls=":", label="right bound")
+        ax3.axvline(
+            peaks[-1],
+            color="k",
+            alpha=0.7,
+            ls=":",
+            label="right bound",
+        )
         ax3.set_xlim(peaks[-1] - 0.3, peaks[-1] + 0.1)
         ax3.legend()
 
-        return fig
+        # metadata
+        metadata = dict(
+            spll=spll,
+            sprp=sprp,
+            bounds=bounds,
+            peakskw=peakskw,
+            integkw=integkw,
+        )
+
+        return fig, metadata
+
+    def plot_sprpPspllsprp(self, Splls, Sprps, sP, *, threshold=1e-4):
+        """
+
+        Parameters
+        ----------
+        Splls, Sprps : (N, M) ndarray
+            Meshgrid.
+        sP : (N, M) ndarray
+            Result of integration.
+
+        Returns
+        -------
+        `~matplotlib.pyplot.Axes`
+        """
+        if Splls.ndim == 1 or Sprps.ndim == 1:
+            Splls, Sprps = np.meshgrid(Splls, Sprps, indexing="ij")
+
+        if callable(sP):  # see `fit_smooth_sP_on_grid`
+            sP = 10 ** sP(Splls, np.log10(Sprps), grid=False)
+
+        idx = sP >= threshold
+
+        fig = plt.figure(figsize=(10, 7))
+        ax = fig.add_subplot(
+            111,
+            title=r"$s_{\perp} P(s_{||}, s_{\perp})$",
+            yscale="log",
+            ylim=((Sprps.min(), None)),
+            aspect="equal",
+        )
+
+        scat = ax.scatter(
+            self.maxrhovalid - Splls[idx],
+            Sprps[idx],
+            c=sP[idx],
+            s=4,
+            cmap="brg",
+            norm=cm.LogNorm(vmin=threshold),
+        )
+        plt.colorbar(scat)
+        ax.axvline(1 / np.sqrt(2), c="k", ls="-", label=r"$\rho_{0}$")
+        ax.axvline(self.rho_recombination, c="k", ls=":", label=r"$\rho_{R}$")
+
+        ax.set_xlabel(r"$\rho_{valid}^{\max} - s_{||}$", fontsize=15)
+        ax.set_ylabel(r"$s_{\perp}$", fontsize=15)
+        ax.legend()
+
+        return ax
+
+
+def make_secondlast_scattering_integration_domain(
+    Splls,
+    Sprps,
+    sprpP,
+    threshold=1e-4,
+    buffer=0.2,
+):
+    """Get the set of points in spll, sprp s.t. results > threshold.
+
+    Parameters
+    ----------
+    Splls : (N, M) ndarray
+        The spll coordinates as a meshgrid of shape (spll, sprp)
+    Sprps : (N, M) ndarray
+        The sprp coordinates as a meshgrid of shape (spll, sprp)
+    results : (N, M) ndarray
+        :math:`s_{\perp} P(s_{||}, s_{\perp})` over the meshgrid
+    threshold : float, optional
+        The minimum value in ``results`` to be kept.
+        This defines the unbuffered shape.
+    buffer : float
+        The distance about the threshold-shape to buffer.
+        This is in linear spll, sprp coordinates with a Euclidean metric.
+
+    Returns
+    -------
+    `shapely.geometry.Polygon`
+    """
+    # THIRD PARTY
+    from shapely.geometry import Polygon
+
+    lefts, rights = [], []
+    for j, sprp in enumerate(Sprps[0, :]):
+        where = np.where(sprpP[:, j] > threshold)[0]
+        if not np.any(where):
+            continue
+        imin, imax = where[[0, -1]]
+        lefts.append((Splls[imin, j], sprp))
+        rights.append((Splls[imax, j], sprp))
+
+    lefts = np.array(lefts)
+    rights = np.array(rights)
+
+    exterior = np.concatenate((lefts, rights[::-1]))
+
+    poly = Polygon(shell=exterior)
+    domain = poly.buffer(buffer)
+
+    return domain
+
+
+def sprpP_on_grid(
+    sd: SpectralDistortion,
+    splls: np.ndarray,
+    sprps: np.ndarray,
+    bounds: T.Optional[T.Tuple[float, float]] = None,
+    *,
+    peakskw: T.Dict[str, T.Any] = dict(prominence=1e-7),
+    integkw: T.Dict[str, T.Any] = dict(epsabs=1e-11, limit=500),
+    domain: T.Optional[Polygon] = None,
+) -> np.ndarray:
+    """Calculate  :math:`s_{\perp}\mathcal{P}(s_{||},s_{\perp})`.
+
+    The calculated result is saved to an npz file.
+
+    .. todo::
+
+        use zarray to save-as-you-go.
+
+    Parameters
+    ----------
+    sd : `.SpectralDistortion`
+    splls : (N,) ndarray
+        Array of :math:`s_{||}`. Built into a meshgrid with ``sprps``.
+    sprps : (M,) ndarray
+        Array of :math:`s_{\perp}`. Built into a meshgrid with ``splls``.
+    bounds : tuple[float, float] or None, optional
+        The bounds of integration. If `None` (default) uses
+        :attr:`~SpectralDistortion.rhovalid`, buffering the upper bound by 3.
+    """
+    # make meshgrid  # TODO! make sparse for memory conservation
+    if splls.ndim == 1 or sprps.ndim == 1:
+        Splls, Sprps = np.meshgrid(splls, sprps, indexing="ij")
+    else:
+        Splls, Sprps = splls, sprps
+
+    # Define bounds of integration. Build default, if None.
+    bounds = (
+        (self.rhovalid[0], self.maxrhovalid + 3) if bounds is None else bounds
+    )
+    bounds = T.cast(T.Tuple[float, float], bounds)
+
+    num: int = len(Splls.flat)
+    results: np.ndarray = np.full(num, np.NaN, dtype=float)
+    errors: np.ndarray = np.full(num, np.NaN, dtype=float)
+    relative_errors: np.ndarray = np.full(num, np.NaN, dtype=float)
+
+    i: int
+    spll: float
+    sprp: float
+    for i, (spll, sprp) in tqdm.tqdm(
+        enumerate(zip(Splls.flat, Sprps.flat)),
+        total=num,
+    ):
+
+        # check if the point is not masked mask
+        if domain is not None and not domain.contains(Point(spll, sprp)):
+            continue
+
+        # TODO! test upper bound doesn't matter so much, so long as upper > rhoV
+        res, err, rel_err = self.sprpP(
+            spll,
+            sprp,
+            bounds=bounds,
+            peakskw=peakskw,
+            integkw=integkw,
+        )
+
+        results[i] = res.value
+        errors[i] = err.value
+        relative_errors[i] = rel_err
+
+    # reshape results
+    results.shape = Splls.shape
+
+    # save mesh, sprpP integral, associated errors, and other info.
+    np.savez(
+        f"output/run-bounds_{bounds}-integkw_{integkw.items()}.npz",
+        Splls=Splls,
+        Sprps=Sprps,
+        results=results,
+        errors=errors,
+        relative_errors=relative_errors,
+        bounds=np.array(list(bounds)),
+    )
+
+    return results
+
+
+def fit_smooth_sP_on_grid(
+    splls,
+    sprps,
+    results,
+    threshold=1e-4,
+    log10_d_clip=-1,
+):
+    """Fit a `~scipy.interpolate.RectBivariateSpline`"""
+    z = results.copy()
+    z[results < threshold] = np.nan
+    z[z == 0] = np.nan
+    log10z = np.log10(z)
+    # need to set "0" close to the minimum value of interest to prevent ringing
+    log10z[np.isnan(log10z)] = np.log10(threshold) + log10_d_clip
+    # log10z[np.isnan(log10z)] = np.log10(threshold)
+    # log10z += log10_d_clip
+
+    interp = RectBivariateSpline(splls, np.log10(sprps), log10z)
+
+    return interp
 
 
 ##############################################################################

@@ -100,7 +100,9 @@ class Test_default_Ak:
         # callable
         assert common.default_Ak.validate(common._Ak_unity) is common._Ak_unity
 
-        Akf = lambda x: 2j
+        def Akf(x):
+            return 2j
+
         assert common.default_Ak.validate(Akf) is Akf
 
         # TypeError

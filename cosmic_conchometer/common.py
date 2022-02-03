@@ -48,8 +48,10 @@ _bb_unit: u.UnitBase = u.erg / (u.cm ** 2 * u.s * u.Hz * u.sr)  # default unit
 
 _GHz_h_kB_in_K: float = (1 * u.GHz * const.h / const.k_B).to_value(u.K)
 """h / k_B times GHz."""
-_GHz3_hc2_2_erg_Hzssrcm2: float = (1 * u.GHz ** 3 * const.h / const.c ** 2 / u.sr).to_value(
-    _bb_unit
+_GHz3_hc2_2_erg_Hzssrcm2: float = (
+    1 * u.GHz ** 3 * const.h / const.c ** 2 / u.sr
+).to_value(
+    _bb_unit,
 )
 """h / c**2 times GHz^3 in erg / Hz s sr cm^2."""
 

@@ -2,9 +2,7 @@
 
 """Intrinsic Distortion Core Functions."""
 
-__all__ = [
-    "DiffusionDistortionBase",
-]
+__all__ = ["DiffusionDistortionBase"]
 
 
 ##############################################################################
@@ -22,6 +20,7 @@ import numpy as np
 from astropy.cosmology.core import Cosmology
 from astropy.utils.decorators import lazyproperty
 from classy import Class as CLASS
+from numpy import sqrt
 
 # PROJECT-SPECIFIC
 from cosmic_conchometer.common import CosmologyDependent, default_Ak
@@ -36,6 +35,33 @@ IUSType = T.Callable[[ArrayLike], np.ndarray]
 
 ##############################################################################
 # CODE
+##############################################################################
+
+
+def rho2_of_rho1(
+    rho1: ArrayLike,
+    spll: ArrayLike,
+    sprp: ArrayLike,
+    maxrhovalid: ArrayLike,
+) -> ArrayLike:
+    """:math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`
+
+    TODO! move to utils
+
+    Parameters
+    ----------
+    rho1 : float
+    spll, sprp : float
+    maxrhovalid : float
+
+    Returns
+    -------
+    float
+    """
+    rho2: ArrayLike = rho1 - sqrt((spll + rho1 - maxrhovalid) ** 2 + sprp ** 2)
+    return rho2
+
+
 ##############################################################################
 
 
@@ -78,7 +104,7 @@ class DiffusionDistortionBase(CosmologyDependent):
         # --- thermodynamic quantities --- #
 
         th = class_cosmo.get_thermodynamics()
-        self._class_thermo_ = th  # editible version
+        self._class_thermo_ = th  # editable version
         self._class_thermo = MappingProxyType(self._class_thermo_)
 
         # time-order everything (inplace)
@@ -228,7 +254,10 @@ class DiffusionDistortionBase(CosmologyDependent):
 
     # ===============================================================
 
-    def plot_CLASS_points_distribution(self, density: bool = False) -> plt.Figure:
+    def plot_CLASS_points_distribution(
+        self,
+        density: bool = False,
+    ) -> plt.Figure:
         """Plot the distribution of evaluation points."""
         fig = plt.figure()
         ax = fig.add_subplot()
@@ -253,7 +282,14 @@ class DiffusionDistortionBase(CosmologyDependent):
         fig = plt.figure(figsize=(10, 4))
 
         # --------------
-        ax1 = fig.add_subplot(121, title=r"Choosing $z_V$", xlabel="z", ylabel=r"$g_\gamma^{CL}$")
+        # g vs z
+
+        ax1 = fig.add_subplot(
+            121,
+            title=r"Choosing $z_V$",
+            xlabel="z",
+            ylabel=r"$g_\gamma^{CL}$",
+        )
 
         # z-valid
         _zVi, zVf = self.zvalid
@@ -266,12 +302,23 @@ class DiffusionDistortionBase(CosmologyDependent):
             ax1.axvline(zVi, c="k", ls=":", label=fr"$z$={zVi}")
         ax1.axvline(zVf, c="k", ls=":", label=fr"$z_V$={zVf}")
 
-        ax1.axhline(gbarCL_V.value, c="k", ls=":", label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_V:.2e}")
+        ax1.axhline(
+            gbarCL_V.value,
+            c="k",
+            ls=":",
+            label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_V:.2e}",
+        )
         ax1.invert_xaxis()
         ax1.legend()
 
         # --------------
-        ax2 = fig.add_subplot(122, xlabel=r"\rho", ylabel=r"$g_\gamma^{CL}(\rho)$")
+        # g vs rho
+
+        ax2 = fig.add_subplot(
+            122,
+            xlabel=r"$\rho$",
+            ylabel=r"$g_\gamma^{CL}(\rho)$",
+        )
 
         rhoVi, rhoVf = self.rhovalid
 
@@ -281,11 +328,15 @@ class DiffusionDistortionBase(CosmologyDependent):
             ax2.axvline(rhoVi, c="k", ls=":", label=fr"$\rho_i$={rhoVi:.2e}")
         ax2.axvline(rhoVf, c="k", ls=":", label=fr"$\rho_V$={rhoVf:.2e}")
         ax2.axhline(
-            gbarCL_V.value, c="k", ls=":", label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_V:.2e}"
+            gbarCL_V.value,
+            c="k",
+            ls=":",
+            label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_V:.2e}",
         )
         ax2.set_yscale("log")
         ax2.legend()
 
+        fig.tight_layout()
         return fig
 
 

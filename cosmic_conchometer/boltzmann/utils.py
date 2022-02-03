@@ -20,7 +20,9 @@ __all__ = ["llc_integrand"]
 ##############################################################################
 
 
-def llc_integrand(func: T.Callable[[float, T.Tuple[float, ...]], float]) -> LowLevelCallable:
+def llc_integrand(
+    func: T.Callable[[float, T.Tuple[float, ...]], float],
+) -> LowLevelCallable:
     """Decorator to make a `scipy.LowLevelCallable` integrand from a function.
 
     Parameters

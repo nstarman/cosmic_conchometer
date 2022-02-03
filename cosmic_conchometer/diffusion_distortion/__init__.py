@@ -3,17 +3,14 @@
 
 """Diffusion Damping Distortion."""
 
-
-__all__ = [
-    "SpectralDistortion",
-]
-
-
 ##############################################################################
 # IMPORTS
 
 # PROJECT-SPECIFIC
-from .spectral import SpectralDistortion
+from . import spectral
+from .spectral import *
+
+__all__ = spectral.__all__
 
 ##############################################################################
 # END

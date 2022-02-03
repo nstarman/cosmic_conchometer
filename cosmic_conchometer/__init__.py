@@ -33,7 +33,14 @@ from ._astropy_init import *  # noqa: F401, F403  # isort:skip
 # ---------------------------------------------------------
 
 # PROJECT-SPECIFIC
-from . import boltzmann, common, data, diffusion_distortion, initial_conditions, utils
+from . import (
+    boltzmann,
+    common,
+    data,
+    diffusion_distortion,
+    initial_conditions,
+    utils,
+)
 from .common import *  # noqa: F401, F403
 from .config import conf
 from .setup_package import DATA_DIR
