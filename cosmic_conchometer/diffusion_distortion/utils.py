@@ -18,7 +18,7 @@ import typing as T
 
 # THIRD PARTY
 import numpy as np
-from scipy.fft import fft, fftfreq, fht, ifftshift, fhtoffset
+from scipy.fft import fft, fftfreq, fht, fftshift, fhtoffset
 
 
 ##############################################################################
@@ -86,8 +86,11 @@ def fft_sP(spll: np.ndarray, sprp: np.ndarray, sP: np.ndarray, *, offset: float=
     resfht = real + 1j * imag
     Ptilde = 2 * np.pi * resfht / qprp[None, :]
 
+    qpll = fftshift(qpll)
+    Ptilde = fftshift(Ptilde, axes=0)
+
     if full_output:
-        return qpll, qprp, Ptilde, 2 * np.pi * resfft
+        return qpll, qprp, Ptilde, 2 * np.pi * fftshift(resfft)
     return qpll, qprp, Ptilde
 
 

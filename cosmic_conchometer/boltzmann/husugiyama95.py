@@ -26,7 +26,7 @@ import numpy as np
 import scipy.integrate as integ
 from astropy.cosmology.core import Cosmology
 from numpy import cos, exp, log, power, sin, sqrt
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, Akima1DInterpolator
 from scipy.optimize import brentq
 
 # PROJECT-SPECIFIC
@@ -104,6 +104,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         domain: T.Optional[u.Quantity] = None,
         integ_kw: T.Optional[Mapping] = None,
         meta: T.Optional[Mapping] = None,
+        _interp_fn = Akima1DInterpolator
     ):
         super().__init__(cosmo=cosmo, meta=meta)
 
@@ -160,13 +161,14 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
         # all the fits will be done on the absolute value of th0, so to be able
         # to recover the correct sign from the fit we need to store it now.
         # TODO? an actual step function
-        self._signk = InterpolatedUnivariateSpline(lgk, np.sign(th0))
+        self._interp_fn = _interp_fn
+        self._signk = _interp_fn(lgk, np.sign(th0))
 
         # fit at low k
         # theta0 adjusted to factor out the dominant k dependence (k^2)
         lowk = slice(None, zerox_idx)
         th0adj = np.log10(np.abs(th0[lowk])) * lgk[lowk].value ** 2
-        self._fitlowk = InterpolatedUnivariateSpline(lgk[lowk], th0adj[lowk])
+        self._fitlowk = _interp_fn(lgk[lowk], th0adj[lowk])
 
         # fit at high k
         # theta0 adjusted to factor out the dominant k dependence (k^2)
@@ -175,7 +177,7 @@ class TransferFunctionHuSugiyama1995Theta0(TransferFunctionBase):
             np.abs(th0[highk]),
             lgk[highk].value ** 2,
         )
-        self._fithighk = InterpolatedUnivariateSpline(lgk[highk], th0adj2)
+        self._fithighk = _interp_fn(lgk[highk], th0adj2)
 
     def _find_kcross(
         self,
