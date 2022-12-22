@@ -18,7 +18,7 @@ scripts/**/output
 envs/*/**
 
 # comment when done with public projects
-notebooks/**/*.png
+/notebooks
 
 
 ###############################################################################
