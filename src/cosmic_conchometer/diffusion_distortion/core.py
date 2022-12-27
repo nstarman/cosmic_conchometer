@@ -1,34 +1,36 @@
-
 """Intrinsic Distortion Core Functions."""
 
-__all__ = ["DiffusionDistortionBase"]
-
-
-##############################################################################
-# IMPORTS
+from __future__ import annotations
 
 # STDLIB
-import typing as T
-from abc import abstractmethod
+import itertools
+from collections.abc import Mapping
+from dataclasses import InitVar, dataclass
+from functools import cached_property
 from types import MappingProxyType
+from typing import Any, Callable
 
-
+# THIRD-PARTY
+import astropy.cosmology.units as cu
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.cosmology.core import Cosmology
-from astropy.utils.decorators import lazyproperty
-from classy import Class as CLASS
-from numpy import sqrt
+import numpy.typing as npt
+from astropy.units import Quantity
+from classy import Class as Classy
+from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
 
-# PROJECT-SPECIFIC
-from cosmic_conchometer.common import CosmologyDependent, default_Ak
-from cosmic_conchometer.typing import ArrayLike, ArrayLikeCallable
+# LOCAL
+from cosmic_conchometer.common import CosmologyDependent
+from cosmic_conchometer.diffusion_distortion.prob_2ls import ComputePspllSprp
+
+__all__: list[str] = []
+
 
 ##############################################################################
 # PARAMETERS
 
-IUSType = T.Callable[[ArrayLike], np.ndarray]
+IUSType = Callable[[npt.ArrayLike], np.ndarray]
 
 
 ##############################################################################
@@ -36,34 +38,8 @@ IUSType = T.Callable[[ArrayLike], np.ndarray]
 ##############################################################################
 
 
-def rho2_of_rho1(
-    rho1: ArrayLike,
-    spll: ArrayLike,
-    sprp: ArrayLike,
-    maxrhovalid: ArrayLike,
-) -> ArrayLike:
-    """:math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`
-
-    TODO! move to utils
-
-    Parameters
-    ----------
-    rho1 : float
-    spll, sprp : float
-    maxrhovalid : float
-
-    Returns
-    -------
-    float
-    """
-    rho2: ArrayLike = rho1 - sqrt((spll + rho1 - maxrhovalid) ** 2 + sprp ** 2)
-    return rho2
-
-
-##############################################################################
-
-
-class DiffusionDistortionBase(CosmologyDependent):
+@dataclass(frozen=True)
+class SpectralDistortion(CosmologyDependent):
     r"""Spectral Distortion.
 
     Parameters
@@ -72,58 +48,40 @@ class DiffusionDistortionBase(CosmologyDependent):
     class_cosmo : :class:`classy.Class`
     AkFunc: Callable, str, or None (optional, keyword-only)
         The function to calculate :math:`A(\vec{k})`
-
     """
 
-    def __init__(
-        self,
-        cosmo: Cosmology,
-        class_cosmo: CLASS,
-        zvalid: T.Tuple[T.Optional[float], float] = (None, 100),
-        *,
-        AkFunc: T.Union[str, ArrayLikeCallable, None] = None,
-        meta: T.Optional[T.Mapping],
-        **kwargs: T.Any,
-    ) -> None:
-        super().__init__(cosmo, meta=meta)
-        self.class_cosmo = class_cosmo  # TODO? move to superclass
+    class_cosmo: Classy
+    z_bounds: InitVar[tuple[float | None, float]] = (None, 100)
 
-        # --- Ak --- #
-        self.AkFunc: ArrayLikeCallable
-        if AkFunc is None:
-            self.AkFunc = default_Ak.get()
-        elif isinstance(AkFunc, str) or callable(AkFunc):
-            with default_Ak.set(AkFunc):
-                self.AkFunc = default_Ak.get()
-        else:
-            raise TypeError("AkFunc must be <None, str, callable>.")
+    def __post_init__(self, z_bounds: tuple[float | None, float] = (None, 100)) -> None:
+        super().__post_init__()
 
         # --- thermodynamic quantities --- #
 
-        th = class_cosmo.get_thermodynamics()
-        self._class_thermo_ = th  # editable version
-        self._class_thermo = MappingProxyType(self._class_thermo_)
+        self._class_thermo: Mapping[str, np.ndarray]
+
+        th = self.class_cosmo.get_thermodynamics()
 
         # time-order everything (inplace)
         for k, v in th.items():
             th[k] = v[::-1]
             th[k].flags.writeable = False
 
-        # now that have z array, can fix unbounded min(zvalid)
-        if zvalid[0] is None:
-            _zvalid = (th["z"][0], zvalid[1])
+        # now that have z array, can fix unbounded min(z_domain)
+        if z_bounds[0] is None:
+            z_domain = (th["z"][0], z_bounds[1])
         else:
-            _zvalid = zvalid
-        self._zvalid = _zvalid
+            z_domain = z_bounds
+        self.z_domain: tuple[float, float]
+        object.__setattr__(self, "z_domain", z_domain)
 
         # rename and assign units
-        it: T.Tuple[T.Tuple[str, str, u.Unit], ...] = (
-            ("conf. time [Mpc]", "conformal time", u.Mpc),
-            ("kappa' [Mpc^-1]", "kappa'", 1 / u.Mpc),
-            ("exp(-kappa)", "exp(-kappa)", 1),
-            ("g [Mpc^-1]", "g", 1 / u.Mpc),
-            ("Tb [K]", "Tb", u.K),
-            # ("dTb [K]", "dTb", u.K),
+        it: tuple[tuple[str, str, u.Unit], ...] = (
+            ("conf. time [Mpc]", "conformal time", u.Unit("Mpc")),
+            ("kappa' [Mpc^-1]", "kappa'", u.Unit("1 / Mpc")),
+            ("exp(-kappa)", "exp(-kappa)", u.Unit("1")),
+            ("g [Mpc^-1]", "g", u.Unit("1 / Mpc")),
+            ("Tb [K]", "Tb", u.Unit("K")),
         )
         for name, newname, unit in it:
             th[newname] = th.pop(name) * unit
@@ -135,125 +93,103 @@ class DiffusionDistortionBase(CosmologyDependent):
         for k in th.keys():
             th[k].flags.writeable = False
 
-    # ===============================================================
+        object.__setattr__(self, "_class_thermo", th)
 
-    @property
-    def zvalid(self) -> T.Tuple[float, float]:
-        return self._zvalid
+        # --- splines --- #
 
-    @lazyproperty
-    def rhovalid(self) -> T.Tuple[float, float]:
-        return (
-            self.distance_converter.rho_of_z(self.zvalid[0]),
-            self.distance_converter.rho_of_z(self.zvalid[1]),
+        rho = th["rho"]
+
+        self._spl_gbarCL: IUSpline
+        object.__setattr__(self, "_spl_gbarCL", IUSpline(rho, th["g"], ext=1))
+        # ext 1 makes stuff 0  # TODO! does this introduce a discontinuity?
+
+        # Instead, to get the right normalization we will define PbarCL from an integral
+        # over gbarCL.
+        integral = [self._spl_gbarCL.integral(a, b) for a, b in itertools.pairwise(rho)]
+        class_P = self.lambda0.value * np.concatenate(([0], np.cumsum(integral)))
+        _spl_PbarCL = IUSpline(rho, class_P, ext=2)
+
+        # normalize the spline
+        a, b = self.rho_domain
+        prob = self.lambda0.value * self._spl_gbarCL.integral(a, b) / _spl_PbarCL(b)
+        self._spl_integral_norm: float
+        object.__setattr__(self, "_spl_integral_norm", 1 / prob)
+
+        self._spl_PbarCL: IUSpline
+        object.__setattr__(self, "_spl_PbarCL", IUSpline(rho, class_P / prob, ext=2))
+
+        # --- assistive --- #
+
+        self.P: ComputePspllSprp
+        object.__setattr__(
+            self,
+            "P",
+            ComputePspllSprp(
+                lambda0=float(self.lambda0.to_value(u.Mpc)),
+                rho_domain=(
+                    float(self.rho_domain[0].to_value(u.one)),
+                    float(self.rho_domain[1].to_value(u.one)),
+                ),  # TODO! confirm (min, max)
+                spl_gbarCL=self._spl_gbarCL,
+                spl_PbarCL=self._spl_PbarCL,
+            ),
         )
 
-    @lazyproperty
-    def maxrhovalid(self) -> float:
-        rho: float = self.rhovalid[1]
-        return rho
+    # ===============================================================
+    # Properties
+
+    @cached_property
+    def rho_domain(self) -> tuple[Quantity, Quantity]:
+        """Rho domain of validity."""
+        return (
+            self.distance_converter.rho_of_z(self.z_domain[0]),
+            self.distance_converter.rho_of_z(self.z_domain[1]),
+        )
+
+    @property
+    def maxrho_domain(self) -> Quantity:
+        """Maximum rho domain of validity."""
+        return self.rho_domain[1]
 
     # --------
 
-    @lazyproperty  # TODO! move
-    def rho_eq(self) -> float:
-        rho: float = self.distance_converter.rho_matter_radiation_equality
-        return rho
+    @cached_property  # TODO! move
+    def rho_eq(self) -> Quantity:
+        """Rho at matter-radiation equality."""
+        return self.distance_converter.rho_matter_radiation_equality
 
     # --------
 
-    @lazyproperty
-    def z_recombination(self) -> float:
+    @property
+    def z_recombination(self) -> Quantity:
         """z of peak of visibility function."""
-        z: float = self.class_z[self.class_g.argmax()]
-        return z
+        return self._class_thermo["z"][self._class_thermo["g"].argmax()] << cu.redshift
 
-    @lazyproperty
-    def rho_recombination(self) -> float:
+    @property
+    def rho_recombination(self) -> Quantity:
         """rho of peak of visibility function."""
-        rho: float = self.class_rho[self.class_g.argmax()]
-        return rho
+        return self._class_thermo["rho"][self._class_thermo["g"].argmax()] << u.one
 
     # --------------------------------------------
     # CLASS properties
 
     @property
-    def class_thermo(self) -> MappingProxyType:
-        return self._class_thermo
-
-    @property
-    def class_z(self) -> np.ndarray:
-        z: np.ndarray = self._class_thermo["z"]
-        return z
-
-    @property
-    def class_eta(self) -> np.ndarray:
-        eta: np.ndarray = self._class_thermo["conformal time"]
-        return eta
-
-    @property
-    def class_dk_dt(self) -> np.ndarray:
-        dkdt: np.ndarray = self._class_thermo["kappa'"]
-        return dkdt
-
-    @property
-    def class_P(self) -> np.ndarray:
-        """:math:`\bar{P_\gamma}^{CL}`"""
-        P: np.ndarray = self._class_thermo["exp(-kappa)"]
-        return P
-
-    @property
-    def class_g(self) -> np.ndarray:
-        g: np.ndarray = self._class_thermo["g"]
-        return g
-
-    @property
-    def class_rho(self) -> np.ndarray:
-        rho: np.ndarray = self._class_thermo["rho"]
-        return rho
-
-    @lazyproperty
-    def class_rhomin(self) -> float:
-        rho: float = min(self.class_rho)
-        return rho
-
-    @lazyproperty
-    def class_rhomax(self) -> float:
-        rho: float = max(self.class_rho)
-        return rho
-
-    # ===============================================================
-    # Convenience methods
-
-    def set_AkFunc(self, value: T.Union[None, str, T.Callable]) -> T.Callable:
-        """Set the default function used in A(k).
-
-        Can be used as a contextmanager, same as `~.default_Ak`.
-
-        Parameters
-        ----------
-        value
-
-        Returns
-        -------
-        `~astropy.utils.state.ScienceStateContext`
-            Output of :meth:`~.default_Ak.set`
-
-        """
-        self.Akfunc: T.Callable = default_Ak.set(value)
-        return self.Akfunc
+    def class_thermo(self) -> MappingProxyType[str, Any]:
+        """CLASS thermodynamics."""
+        if "class_thermo" in self.__dict__:
+            ct: MappingProxyType[str, Any] = self.__dict__["class_thermo"]
+        else:
+            self.__dict__["class_thermo"] = ct = MappingProxyType(self._class_thermo)
+        return ct
 
     # ===============================================================
 
-    def plot_CLASS_points_distribution(
-        self,
-        density: bool = False,
-    ) -> plt.Figure:
+    def plot_CLASS_points_distribution(self, *, density: bool = False) -> plt.Figure:
         """Plot the distribution of evaluation points."""
         fig = plt.figure()
         ax = fig.add_subplot()
 
-        ax.hist(np.log10(self.class_z[:-1]), density=density, bins=30)
+        ax.hist(np.log10(self._class_thermo["z"][:-1]), density=density, bins=30)
         ax.axvline(
             np.log10(self.z_recombination),
             c="k",
@@ -272,6 +208,10 @@ class DiffusionDistortionBase(CosmologyDependent):
         """Plot ``z_v`` choice."""
         fig = plt.figure(figsize=(10, 4))
 
+        zs = self._class_thermo["z"]
+        gs = self._class_thermo["g"]
+        rhos = self._class_thermo["rho"]
+
         # --------------
         # g vs z
 
@@ -283,21 +223,21 @@ class DiffusionDistortionBase(CosmologyDependent):
         )
 
         # z-valid
-        _zVi, zVf = self.zvalid
-        zVi = None if _zVi == self.class_z[0] else _zVi
-        gbarCL_V = self.class_g[np.argmin(np.abs(self.class_z - zVf))]
+        _zVi, zVf = self.z_domain
+        zVi = None if _zVi == zs[0] else _zVi
+        gbarCL_O = gs[np.argmin(np.abs(zs - zVf))]
 
-        ind = self.class_g > 1e-18 / u.Mpc  # cutoff for plot clarity
-        ax1.loglog(self.class_z[ind], self.class_g[ind])
+        ind = gs > 1e-18 / u.Mpc  # cutoff for plot clarity
+        ax1.loglog(zs[ind], gs[ind])
         if zVi is not None:
-            ax1.axvline(zVi, c="k", ls=":", label=fr"$z$={zVi}")
-        ax1.axvline(zVf, c="k", ls=":", label=fr"$z_V$={zVf}")
+            ax1.axvline(zVi, c="k", ls=":", label=rf"$z$={zVi}")
+        ax1.axvline(zVf, c="k", ls=":", label=rf"$z_V$={zVf}")
 
         ax1.axhline(
-            gbarCL_V.value,
+            gbarCL_O.value,
             c="k",
             ls=":",
-            label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_V:.2e}",
+            label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_O:.2e}",
         )
         ax1.invert_xaxis()
         ax1.legend()
@@ -311,18 +251,18 @@ class DiffusionDistortionBase(CosmologyDependent):
             ylabel=r"$g_\gamma^{CL}(\rho)$",
         )
 
-        rhoVi, rhoVf = self.rhovalid
+        rho_o0, rho_o1 = self.rho_domain
 
-        ax2.plot(self.class_rho[ind], self.class_g[ind])
+        ax2.plot(rhos[ind], gs[ind])
         if zVi is not None:
-            rhoVi = self.distance_converter.rho_of_z(zVi)
-            ax2.axvline(rhoVi, c="k", ls=":", label=fr"$\rho_i$={rhoVi:.2e}")
-        ax2.axvline(rhoVf, c="k", ls=":", label=fr"$\rho_V$={rhoVf:.2e}")
+            rho_o0 = self.distance_converter.rho_of_z(zVi)
+            ax2.axvline(rho_o0.value, c="k", ls=":", label=rf"$\rho_i$={rho_o0:.2e}")
+        ax2.axvline(rho_o1.value, c="k", ls=":", label=rf"$\rho_V$={rho_o1:.2e}")
         ax2.axhline(
-            gbarCL_V.value,
+            gbarCL_O.value,
             c="k",
             ls=":",
-            label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_V:.2e}",
+            label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_O:.2e}",
         )
         ax2.set_yscale("log")
         ax2.legend()

@@ -1,191 +1,78 @@
+"""Tests for :mod:`~cosmic_conchometer.common`."""
 
-"""Initiation Tests for :mod:`~cosmic_conchometer.common`."""
+# STDLIB
+from weakref import ProxyType
 
-__all__ = ["Test_DiffusionDistortionBase"]
-
-
-##############################################################################
-# IMPORTS
-
-
-import astropy.units as u
-import numpy as np
+# THIRD-PARTY
 import pytest
-from astropy.cosmology import Cosmology, default_cosmology
-from classy import Class as CLASS
+from astropy.cosmology import Planck15
 
-# PROJECT-SPECIFIC
-from cosmic_conchometer import common
-from cosmic_conchometer.config import conf
+# LOCAL
+from cosmic_conchometer.common import CosmologyDependent
+from cosmic_conchometer.utils.distances import DistanceMeasureConverter
 
 ##############################################################################
 # TESTS
 ##############################################################################
 
 
-def test_default_cosmo():
-    """Test `~cosmic_conchometer.common.default_cosmo`"""
-    assert isinstance(common.default_cosmo, Cosmology)
-
-    with default_cosmology.set(conf.default_cosmo):
-        assert common.default_cosmo == default_cosmology.get()
-
-
-# /def
-
-# -------------------------------------------------------------------
-
-
-def test_blackbody():
-    """Test :func:`~cosmic_conchometer.common.blackbody`"""
-    # standard usage
-    bb = common.blackbody(10 * u.GHz, 1e5 * u.K)
-    assert bb.unit == common._bb_unit
-
-    # some values
-    assert np.isnan(common.blackbody(0 * u.GHz, 1e5 * u.K))
-
-    assert common.blackbody(10 * u.GHz, 0 * u.K) == 0
-
-
-# /def
-
-# -------------------------------------------------------------------
-
-
-def test__Ak_unity():
-    """Test :func:`~cosmic_conchometer.common._Ak_unity`"""
-    assert common._Ak_unity(np.random.rand(1) * 1e5) == 1.0 + 0j
-
-
-# /def
-
-# -------------------------------------------------------------------
-
-
-class Test_default_Ak:
-    def test__default_value(self):
-        """check attribute ``_default_value``."""
-        assert common.default_Ak._default_value == "unity"
-
-    def test__value(self):
-        """check attribute ``_value``."""
-        assert common.default_Ak._value is None
-
-    def test__registry(self):
-        """check attribute ``_registry``."""
-        assert isinstance(common.default_Ak._registry, dict)
-        assert common.default_Ak._default_value in common.default_Ak._registry
-
-    def test_get_from_str(self):
-        """Test method ``get_from_str``."""
-        # success
-        assert common.default_Ak.get_from_str("unity") is common._Ak_unity
-
-        # failure
-        with pytest.raises(KeyError):
-            common.default_Ak.get_from_str("not registered")
-
-    def test_validate(self):
-        """Test method ``validate``."""
-        # None
-        assert common.default_Ak.validate(None) is common._Ak_unity
-
-        # str
-        assert common.default_Ak.validate("unity") is common._Ak_unity
-        with pytest.raises(KeyError):
-            common.default_Ak.validate("not registered")
-
-        # callable
-        assert common.default_Ak.validate(common._Ak_unity) is common._Ak_unity
-
-        def Akf(x):
-            return 2j
-
-        assert common.default_Ak.validate(Akf) is Akf
-
-        # TypeError
-        with pytest.raises(TypeError):
-            common.default_Ak.validate(object())
-
-    def test_register(self):
-        """Test method ``register``."""
-        # error
-        with pytest.raises(ValueError, match="cannot overwrite"):
-            common.default_Ak.register("unity", None, overwrite=False)
-
-        # successful
-        try:
-            common.default_Ak.register("new", lambda x: 2j, overwrite=False)
-        except Exception:
-            raise
-        else:
-            common.default_Ak._registry["new"](10) == 2j
-        finally:
-            common.default_Ak._registry.pop("new", None)
-
-
-# -------------------------------------------------------------------
-
-
 class Test_CosmologyDependent:
     """Test `~cosmic_conchometer.common.CosmologyDependent`."""
 
-    _cls = common.CosmologyDependent
+    @pytest.fixture(scope="class")
+    def cdep_cls(self):
+        """Fixture for the cosmology class."""
+        return CosmologyDependent
 
-    @classmethod
-    def setup_class(cls):
-        """Setup Class.
+    @pytest.fixture(scope="class")
+    def cosmo_cls(self):
+        """Fixture for the cosmology class."""
+        return type(Planck15)
 
-        Setup any state specific to the execution of the given class (which
-        usually contains tests).
+    @pytest.fixture(scope="class")
+    def cosmo(self):
+        """Fixture for the cosmology class."""
+        return Planck15
 
-        """
-        
-        from astropy.cosmology import Planck15
-
-        # input
-        cls.cosmo = Planck15
-        cls.class_cosmo = CLASS()
-
-        cls.instance = cls._cls(cls.cosmo)
-
-    # /def
+    @pytest.fixture(scope="class")
+    def cdep(self, cdep_cls, cosmo):
+        """Fixture for the cosmology-dependent instance."""
+        return cdep_cls(cosmo)
 
     # =====================================================
     # Method Tests
 
-    def test___init__(self):
+    def test___init__(self, cdep_cls, cosmo):
         """Test method ``__init__``."""
         # Most basic instantiation.
-        inst = self._cls(self.cosmo)
+        inst = cdep_cls(cosmo)
 
-        assert isinstance(inst, self._cls)
-        assert isinstance(inst.cosmo, self.cosmo)
+        assert isinstance(inst, cdep_cls)
+        assert inst.cosmo is cosmo
 
-        # with metadata
-        self._cls(self.cosmo, meta=dict(extra="info"))
+    def test_distance_converter(self, cdep):
+        """Test method ``distance_converter``."""
+        # Check that the attribute is a DistanceMeasureConverter.
+        assert isinstance(cdep.distance_converter, DistanceMeasureConverter)
 
-        assert isinstance(inst, self._cls)
-        assert isinstance(inst.cosmo, self.cosmo)
-        assert inst.meta["extra"] == "info"
+        # Check that the attribute is a proxy to the cosmology.
+        assert isinstance(cdep.distance_converter.cosmo, ProxyType)
+        assert cdep.distance_converter.cosmo == cdep.cosmo
 
-    # /def
+        # Further tests are in tests/utils/test_distances.py!
 
-    def test_attributes(self):
-        """Test class has expected attributes."""
-        # make class
-        inst = self._cls(self.cosmo)
+    def test_lambda0(self, cdep):
+        """Test method ``lambda0``."""
+        # Check the unit.
+        assert cdep.lambda0.unit == "Mpc"
 
-        # test has attributes
-        for attr in "cosmo":
-            hasattr(inst, attr)
+        # Check the value is from the distance_converter.
+        assert cdep.lambda0 == cdep.distance_converter.lambda0
 
-    # /def
-
-
-# /class
-
-
-##############################################################################
-# END
+    def test_z_matter_radiation_equality(self, cdep):
+        """Test method ``z_matter_radiation_equality``."""
+        # Check the value is from the distance_converter.
+        assert (
+            cdep.z_matter_radiation_equality
+            is cdep.distance_converter.z_matter_radiation_equality
+        )

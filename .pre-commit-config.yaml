@@ -1,3 +1,6 @@
+default_language_version:
+  python: python3.10
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -49,11 +52,6 @@ repos:
         types: [pyi]
         additional_dependencies: [toml]
 
-  - repo: https://github.com/asottile/add-trailing-comma
-    rev: v2.4.0
-    hooks:
-      - id: add-trailing-comma
-
   - repo: https://github.com/psf/black
     rev: 22.12.0
     hooks:
@@ -69,7 +67,7 @@ repos:
         additional_dependencies: [black==20.8b1]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.191"
+    rev: "v0.0.194"
     hooks:
       - id: ruff
         args:
@@ -82,19 +80,4 @@ repos:
         args:
           - --strict
           - --ignore-missing-imports
-
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.5.3
-    hooks:
-      - id: nbqa-black
-        additional_dependencies: [black==20.8b1]
-        args: [--nbqa-mutate]
-      - id: nbqa-flake8
-        additional_dependencies: [flake8==3.8.4]
-        args: [--nbqa-mutate]
-      - id: nbqa-pyupgrade
-        additional_dependencies: [pyupgrade==2.7.3]
-        args: [--nbqa-mutate, --py36-plus]
-      - id: nbqa-isort
-        additional_dependencies: [isort==5.6.4]
-        args: [--nbqa-mutate]
+        exclude: ^tests/

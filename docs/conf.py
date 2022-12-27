@@ -31,6 +31,7 @@ import datetime
 import os
 import sys
 from importlib import import_module
+from typing import Any
 
 try:
     # THIRD-PARTY
@@ -48,7 +49,7 @@ from configparser import ConfigParser
 conf = ConfigParser()
 
 conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
-setup_cfg: dict = dict(conf.items("metadata"))
+setup_cfg: dict[str, Any] = dict(conf.items("metadata"))
 
 # -- General configuration ----------------------------------------------------
 

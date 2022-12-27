@@ -2,34 +2,9 @@
 
 """Cosmic Conchometer -- Measurements in Last-Scattering Shells."""
 
+from __future__ import annotations
 
-# PROJECT-SPECIFIC
-from . import (
-    boltzmann,
-    common,
-    data,
-    diffusion_distortion,
-    initial_conditions,
-    utils,
-)
-from .common import *  # noqa: F401, F403
-from .config import conf
-from .setup_package import DATA_DIR
-
-# ALL
-__all__ = [
-    # modules
-    "boltzmann",
-    "common",
-    "data",
-    "diffusion_distortion",
-    "initial_conditions",
-    "utils",
-    # objects
-    "conf",
-    # etc.
-    "DATA_DIR",
-]
+__all__: list[str] = []
 
 __author__ = ["Nathaniel Starkman", "Glenn Starkman", "Arthur Kosowsky"]
 __copyright__ = "Copyright 2020, "

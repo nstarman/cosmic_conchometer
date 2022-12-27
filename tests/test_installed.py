@@ -1,31 +1,9 @@
-
 """Initiation Tests for `~cosmic_conchometer`."""
-
-__all__ = [
-    "test_has_version",
-    "test_setup_package_flags",
-]
-
-##############################################################################
-# IMPORTS
-
-# STDLIB
-import pathlib
-
-##############################################################################
-# TESTS
-##############################################################################
 
 
 def test_has_version():
     """The most basic test."""
-    # PROJECT-SPECIFIC
+    # LOCAL
     import cosmic_conchometer
 
     assert hasattr(cosmic_conchometer, "__version__"), "No version!"
-
-
-# /def
-
-##############################################################################
-# END

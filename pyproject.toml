@@ -1,9 +1,72 @@
+[project]
+    name = "cosmic_conchometer"
+    version = "0.1.0"
+    description = "Observables from a thick scattering volume"
+    readme = "README.rst"
+    requires-python = ">=3.10"
+    license = {file = "LICENSE"}
+    keywords = ["astronomy", "astrophysics", "cosmology"]
+    authors = [
+        {name = "Nathaniel Starkman", email = "n.starkman@mail.utoronto.ca"},
+        {name = "Glenn Starkman", email = "glenn.starkman@case.edu"},
+        {name = "Arthur Kosowsky", email = "kosowsky@pitt.edu"}
+    ]
+    maintainers = [
+        {name = "Nathaniel Starkman", email = "n.starkman@mail.utoronto.ca"}
+    ]
+    classifiers = [
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+    ]
+    dependencies = [
+        "astropy>=5.2",
+        "classy",
+        "numpy>=1.22",
+        "pooch>1.20",
+        "scipy",
+        "tqdm",
+    ]
+
+[project.optional-dependencies]
+    all = []
+    test = [
+        "coverage[toml]",
+        "pytest",
+        "pytest-astropy",
+    ]
+    docs = [
+        "graphviz",
+        "IPython",
+        "jupyter_client",
+        "nbsphinx",
+        "pydata-sphinx-theme",
+        "sphinx",
+        "sphinx-astropy",
+        "tomlkit",
+    ]
+
+[project.urls]
+    homepage = "https://github.com/nstarman/cosmic_conchometer"
+    repository = "https://github.com/nstarman/cosmic_conchometer"
+    documentation = "https://github.com/nstarman/cosmic_conchometer"
+
+
 [build-system]
 requires = ["setuptools",
             "setuptools_scm",
             "extension_helpers",
             "wheel"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools]
+    package-dir = {"" = "src"}
+
+[tool.setuptools_scm]
+
 
 [tool.black]
     line-length = 88
@@ -34,8 +97,9 @@ build-backend = "setuptools.build_meta"
 [tool.isort]
     profile = "black"
     sections = [ "FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER",]
-    known_third_party = ["astropy", "classy", "extension_helpers", "matplotlib", "numba", "numpy", "pytest", "scipy", "setuptools", "shapely", "tqdm"]
+    known_third_party = ["astropy", "classy", "extension_helpers", "matplotlib", "numba", "numpy", "pytest", "scipy", "setuptools", "tqdm"]
     known_localfolder = "cosmic_conchometer"
+
     import_heading_stdlib = "STDLIB"
     import_heading_thirdparty = "THIRD-PARTY"
     import_heading_firstparty = "FIRST-PARTY"
@@ -52,16 +116,27 @@ build-backend = "setuptools.build_meta"
     warn_unused_configs = true
     warn_unreachable = true
     exclude = '''(^|/)tests/'''
-    plugins = []
-    python_version = "3.10"
 
-    [[tool.mypy.overrides]]
-        module = "*/tests/*"
-        ignore_errors = true
+[[tool.mypy.overrides]]
+    module = "*/tests/*"
+    ignore_errors = true
 
-    [[tool.mypy.overrides]]
-        module = "tests/*"
-        ignore_errors = true
+[[tool.mypy.overrides]]
+    module = "tests/*"
+    ignore_errors = true
+
+[[tool.mypy.overrides]]
+    module = "conftest.py"
+    ignore_errors = true
+
+
+[tool.pytest]
+testpaths = ["tests", "cosmic_conchometer", "docs"]
+astropy_header = true
+doctest_plus = "enabled"
+text_file_format = "rst"
+doctest_norecursedirs="*/cosmic_conchometer/extern/*"
+addopts = "--doctest-rst"
 
 
 [tool.ruff]
@@ -96,8 +171,10 @@ build-backend = "setuptools.build_meta"
     "ARG001", "ARG002",
     "D105", "D107", "D203", "D213",
     "FBT003",
+    "N8",
     ]
 
 
 [tool.ruff.per-file-ignores]
     "docs/conf.py" = ["A001"]
+    "test_*.py" = ["ANN", "ARG005", "D100", "D101", "D102", "N8", "S101"]

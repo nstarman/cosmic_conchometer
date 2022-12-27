@@ -6,36 +6,32 @@ name: CI
 on:
   push:
     tags:
-    branches:  # only build on select branches
+    branches: # only build on select branches
       - main
-      - master  # TODO delete when transition
+      - master # TODO delete when transition
       - release/*
 
   pull_request:
-    branches:  # only build on PRs against main
+    branches: # only build on PRs against main
       - main
-      - master  # TODO delete when transition
+      - master # TODO delete when transition
 
   schedule:
-    - cron: '0 0 * * 0' # run weekly, even if no push / PR.
-
+    - cron: "0 0 * * 0" # run weekly, even if no push / PR.
 
 #########################
 # Environment Variables
 
-env:  # Set defaults to avoid repeating in most cases
-
-  SETUP_XVFB: True  # avoid issues if mpl tries to open a GUI window
+env: # Set defaults to avoid repeating in most cases
+  SETUP_XVFB: True # avoid issues if mpl tries to open a GUI window
 
   # For private codecov
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
 
 #########################
 # The Tests
 
 jobs:
-
   # ---------------------------------------------
   # Initial Tests
 
@@ -49,60 +45,49 @@ jobs:
 
       matrix:
         include:
-
           - name: py3.8, min deps | coverage
             os: ubuntu-latest
             python: 3.8
             toxenv: py38-test-cov
 
-          # - name: code style.  # Done with pre-commit
-          #   os: ubuntu-latest
-          #   python: 3.x
-          #   toxenv: codestyle
-
-          # - name: Documentation Build  # Done with RTD on public repos.
-          #   os: ubuntu-latest
-          #   python: 3.x
-          #   toxenv: build_docs
-
     steps:
-    # --------------------
-    # Setup
-    - name: Checkout code
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-    - name: Set up Python ${{ matrix.python }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python }}
-    - name: Install base dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade tox codecov
-    - name: Install 'build_docs' dependency
-      if: "contains(matrix.tox_env, 'build_docs')"
-      run: |
-        sudo apt-get -y install graphviz
-        sudo apt-get -y install pandoc
-    - name: Print Python, pip, setuptools, and tox versions
-      run: |
-        python -c "import sys; print(f'Python {sys.version}')"
-        python -c "import pip; print(f'pip {pip.__version__}')"
-        python -c "import setuptools; print(f'setuptools {setuptools.__version__}')"
-        python -c "import tox; print(f'tox {tox.__version__}')"
-    # --------------------
-    # Run Tests
-    - name: Run tests
-      run: tox ${{ matrix.toxargs }} -e ${{ matrix.toxenv }} -- ${{ matrix.toxposargs }}
-    # TODO: Do we need --gcov-glob "*cextern*" ?
-    # --------------------
-    # Cleanup
-    - name: Upload coverage to codecov
-      if: contains(matrix.toxenv,'-cov')
-      uses: codecov/codecov-action@v1
-      with:
-        file: ./coverage.xml
+      # --------------------
+      # Setup
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install base dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade tox codecov
+      - name: Install 'build_docs' dependency
+        if: "contains(matrix.tox_env, 'build_docs')"
+        run: |
+          sudo apt-get -y install graphviz
+          sudo apt-get -y install pandoc
+      - name: Print Python, pip, setuptools, and tox versions
+        run: |
+          python -c "import sys; print(f'Python {sys.version}')"
+          python -c "import pip; print(f'pip {pip.__version__}')"
+          python -c "import setuptools; print(f'setuptools {setuptools.__version__}')"
+          python -c "import tox; print(f'tox {tox.__version__}')"
+      # --------------------
+      # Run Tests
+      - name: Run tests
+        run: tox ${{ matrix.toxargs }} -e ${{ matrix.toxenv }} -- ${{ matrix.toxposargs }}
+      # TODO: Do we need --gcov-glob "*cextern*" ?
+      # --------------------
+      # Cleanup
+      - name: Upload coverage to codecov
+        if: contains(matrix.toxenv,'-cov')
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./coverage.xml
 
   # ---------------------------------------------
   # Further Tests
@@ -118,13 +103,12 @@ jobs:
 
       matrix:
         include:
-
           - name: py3.8 - all deps, remote data | coverage
             os: ubuntu-latest
             python: 3.8
             toxenv: py38-test-alldeps-cov
             toxargs: -v --develop
-            toxposargs: --durations=50 --remote-data=any  # in case it runs long
+            toxposargs: --durations=50 --remote-data=any # in case it runs long
 
           # NOTE: In the build below we also check that tests do not open and
           # leave open any files. This has a performance impact on running the
@@ -151,27 +135,26 @@ jobs:
             toxenv: py38-test
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-    - name: Set up Python ${{ matrix.python }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python }}
-    - name: Install base dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade tox codecov
-    - name: Run tests
-      run: tox ${{ matrix.toxargs }} -e ${{ matrix.toxenv }} -- ${{ matrix.toxposargs }}
-    # TODO: Do we need --gcov-glob "*cextern*" ?
-    - name: Upload coverage to codecov
-      if: contains(matrix.toxenv,'-cov')
-      uses: codecov/codecov-action@v1
-      with:
-        file: ./coverage.xml
-
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install base dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade tox codecov
+      - name: Run tests
+        run: tox ${{ matrix.toxargs }} -e ${{ matrix.toxenv }} -- ${{ matrix.toxposargs }}
+      # TODO: Do we need --gcov-glob "*cextern*" ?
+      - name: Upload coverage to codecov
+        if: contains(matrix.toxenv,'-cov')
+        uses: codecov/codecov-action@v1
+        with:
+          file: ./coverage.xml
 
   # ---------------------------------------------
   # Many Versions
@@ -183,23 +166,23 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      fail-fast: false  # run all the tests, even if one fails
+      fail-fast: false # run all the tests, even if one fails
 
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python: [3.7, 3.8]
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python }}
-    - name: Setup
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade tox codecov
-    - name: Test  # Run tox using the version of Python in `PATH`
-      run: tox -e py
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Setup
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade tox codecov
+      - name: Test # Run tox using the version of Python in `PATH`
+        run: tox -e py

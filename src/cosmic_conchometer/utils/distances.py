@@ -1,23 +1,24 @@
 """Convert between different distance measures."""
 
-##############################################################################
-# IMPORTS
-
 from __future__ import annotations
-from dataclasses import dataclass
-from functools import cached_property
 
 # STDLIB
-from typing import TypeVar, Any, Union, cast
+from dataclasses import dataclass
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
+from weakref import ProxyType
 
-
+# THIRD-PARTY
 import astropy.constants as const
+import astropy.cosmology.units as cu
 import astropy.units as u
 import numpy as np
-from astropy.cosmology.core import Cosmology
+import scipy.optimize as optim
 
-# PROJECT-SPECIFIC
-from cosmic_conchometer.typing import TArrayLike
+if TYPE_CHECKING:
+    # THIRD-PARTY
+    from astropy.cosmology import FLRW
+    from astropy.units import Quantity
 
 __all__ = [
     "z_matter_radiation_equality",
@@ -27,30 +28,55 @@ __all__ = [
 ##############################################################################
 # PARAMETERS
 
-# alpha
-alpha0: u.Quantity = 0
-alphaeq: u.Quantity = 1
-
-# rho
-rho0: u.Quantity = 1 / np.sqrt(2)
-rhoeq: u.Quantity = 1
-
 # static types
-TZ = TypeVar("TZ", float, u.Quantity)  # u.Quantity[dimensionless]
+TZ = TypeVar("TZ", float, "Quantity")  # u.Quantity[dimensionless]
 
 ##############################################################################
 # CODE
 ##############################################################################
 
 
+@overload
 def z_matter_radiation_equality(
-    cosmo: Cosmology,
+    cosmo: FLRW, *, full_output: Literal[False] = ...
+) -> Quantity:
+    ...
+
+
+@overload
+def z_matter_radiation_equality(
+    cosmo: FLRW, *, full_output: Literal[True]
+) -> tuple[Quantity, optim.RootResults]:
+    ...
+
+
+@overload
+def z_matter_radiation_equality(
+    cosmo: FLRW,
+    zmin: TZ,
+    zmax: TZ,
+    *,
+    full_output: Literal[False] = ...,
+    **rootkw: Any,
+) -> Quantity:
+    ...
+
+
+@overload
+def z_matter_radiation_equality(
+    cosmo: FLRW, zmin: TZ, zmax: TZ, *, full_output: Literal[True], **rootkw: Any
+) -> tuple[Quantity, optim.RootResults]:
+    ...
+
+
+def z_matter_radiation_equality(
+    cosmo: FLRW,
     zmin: TZ = 1e3,
     zmax: TZ = 1e4,
     *,
     full_output: bool = False,
     **rootkw: Any,
-) -> Union[u.Quantity, tuple[u.Quantity, tuple[Any, ...]]]:
+) -> Quantity | tuple[Quantity, optim.RootResults]:
     """Calculate matter-radiation equality redshift for a given cosmology.
 
     This works for a cosmology with any number of components.
@@ -76,187 +102,144 @@ def z_matter_radiation_equality(
     tuple
         Full results of root finder if `full_output` is True
     """
-    
-    from scipy.optimize import brentq
-
     # residual function
-    def f(z: TZ) -> TZ:
-        diff: TZ = cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z))
-        return diff
+    def residual(z: TZ) -> TZ:
+        return cast("TZ", cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z)))
 
-    zeq, *rest = brentq(f, zmin, zmax, full_output=True, **rootkw)
-    z_eq = cast("u.Quantity", zeq)
+    zeq, rest = optim.brentq(residual, zmin, zmax, full_output=True, **rootkw)
+    z_eq = cast("Quantity", zeq)
 
     return z_eq if not full_output else (z_eq, rest)
 
 
+# ==================================================================
+
+
 @dataclass(frozen=True)
 class DistanceMeasureConverter:
+    """Convert between distance measures."""
 
-    cosmo: Cosmology
+    cosmo: FLRW | ProxyType[FLRW]
 
     # ---------------------------------
     # scales
 
     @property
-    def lambda0(self) -> u.Quantity:
-        aeq = 1.0 / (1.0 + self.z_matter_radiation_equality)  # a0 = 1
-        lambda0 = (const.c / self.cosmo.H0) * np.sqrt(
-            (8 * aeq) / self.cosmo.Om0
-        )
+    def lambda0(self) -> Quantity:
+        """Distance scale factor.
+
+        Returns
+        -------
+        Quantity
+        """
+        aeq = self.a_today / (1.0 + self.z_matter_radiation_equality)
+        lambda0 = (const.c / self.cosmo.H0) * np.sqrt((8 * aeq) / self.cosmo.Om0)
         return lambda0 << u.Mpc
 
     # ---------------------------------
-    # beginning of time
+    # Beginning of time
 
     @property
-    def z_begin(self) -> float:
+    def z_begin(self) -> Quantity:
         """Redshift at the beginning of time."""
-        return np.inf
+        return np.inf << cu.redshift
 
     @property
-    def a_begin(self) -> int:
-        """Redshift at the beginning of time."""
-        return 0
-
-    # @property
-    # def alpha_begin(self) -> int:
-    #     return 0
+    def a_begin(self) -> Quantity:
+        """Scale-factor at the beginning of time."""
+        return 0 << u.one
 
     @property
-    def rho_begin(self) -> float:
-        return 1 / np.sqrt(2)
+    def rho_begin(self) -> Quantity:
+        """Rho at the beginning of time."""
+        return 1 / np.sqrt(2) << u.one
 
     # ---------------------------------
     # matter-radiation equality
 
     def calculate_z_matter_radiation_equality(
-        self,
-        zmin: TZ = 1e3,
-        zmax: TZ = 1e4,
-        *,
-        full_output: bool = False,
-        **rootkw: Any,
-    ) -> float:
+        self, zmin: TZ = 1e3, zmax: TZ = 1e4, **rootkw: Any
+    ) -> Quantity:
+        """Redshift at matter-radiation equality.
+
+        Parameters
+        ----------
+        zmin, zmax : float
+            The min/max redshift in which to search for matter-radiation equality.
+        **rootkw : Any
+            kwargs into scipy minimizer. See `~scipy.optimize.brentq` for details.
+
+        Returns
+        -------
+        Quantity
+            The redshift at matter-radiation equality.
+        """
         return z_matter_radiation_equality(
-            self.cosmo, zmin=zmin, zmax=zmax, full_output=full_output, **rootkw
+            self.cosmo, zmin=zmin, zmax=zmax, full_output=False, **rootkw
         )
 
     @cached_property
-    def z_matter_radiation_equality(self) -> float:
+    def z_matter_radiation_equality(self) -> Quantity:
+        """Redshift at matter-radiation equality."""
         return self.calculate_z_matter_radiation_equality()
 
-    # def calculate_a_matter_radiation_equality(
-    #     self,
-    #     amin: float = 1e-9,
-    #     amax: float = 0.1,
-    #     **rootkw: Any,
-    # ) -> float:
-    #     """Scale factor at matter-radiation equality."""
-    #     zeq = self.calculate_z_matter_radiation_equality(
-    #         zmin=self.z_of_a(amin), zmax=self.z_of_a(amax), **rootkw
-    #     )
-    #     aeq = self.a_of_z(zeq)
-    #     return aeq
-
     @property
-    def a_matter_radiation_equality(self) -> float:
-        # return self.calculate_a_matter_radiation_equality()
+    def a_matter_radiation_equality(self) -> Quantity:
+        """Scale factor at matter-radiation equality."""
         return self.a_of_z(self.z_matter_radiation_equality)
 
-    # @property
-    # def alpha_matter_radiation_equality(self) -> float:
-    #     return 1.0
-
     @property
-    def rho_matter_radiation_equality(self) -> float:
-        # TODO! have a calculate_rho_matter_radiation_equality
+    def rho_matter_radiation_equality(self) -> Quantity:
+        """Rho at matter-radiation equality."""
         return self.rho_of_z(self.z_matter_radiation_equality)
 
     # ---------------------------------
-    # today
+    # Today
 
     @property
-    def z_today(self) -> float:
+    def z_today(self) -> Quantity:
         """Redshift today."""
-        return 0.0
+        return 0.0 * cu.redshift
 
     @property
-    def a_today(self) -> float:
+    def a_today(self) -> Quantity:
         """Scale factor today."""
-        return 1.0
+        return 1.0 * u.one
 
-    # @property
-    # def alpha_today(self) -> float:
-    #     """alpha today."""
-    #     return 1.0 / self.a_matter_radiation_equality
+    @property
+    def rho_today(self) -> Quantity:
+        """Rho today."""
+        return self.rho_of_z(self.z_today)  # TODO: hard-code?
 
     # ---------------------------------
-    # redshift and scale factor
+    # Redshift and scale factor
 
-    def z_of_a(self, a: TArrayLike, /) -> TArrayLike:
+    def z_of_a(self, a: Quantity | float, /) -> Quantity:
         """Redshift from the scale factor."""
-        return np.divide(1.0, a) - 1.0
+        return (np.divide(1.0, a) - 1.0) << cu.redshift
 
-    def a_of_z(self, z: TArrayLike, /) -> TArrayLike:
+    def a_of_z(self, z: Quantity | float, /) -> Quantity:
         """Scale factor from the redshift."""
-        return 1.0 / (z + 1.0)
-
-    # # ---------------------------------
-    # # scale factor and alpha
-
-    # def a_of_alpha(self, alpha: TArrayLike, /) -> TArrayLike:
-    #     """Scale factor from alpha.
-
-    #     :math:`\alpha = a / a_{eq}`
-    #     """
-    #     a: TArrayLike = self.a_matter_radiation_equality * alpha
-    #     return a
-
-    # def alpha_of_a(self, a: TArrayLike, /) -> TArrayLike:
-    #     """alpha from the scale factor."""
-    #     alpha: TArrayLike = a / self.a_matter_radiation_equality
-    #     return alpha
-
-    # # ---------------------------------
-    # # redshift and alpha
-
-    # def z_of_alpha(self, alpha: TArrayLike, /) -> TArrayLike:
-    #     """redshift from alpha."""
-    #     return self.z_of_a(self.a_of_alpha(alpha))
-
-    # def alpha_of_z(self, z: TArrayLike, /) -> TArrayLike:
-    #     """alpha from redshift."""
-    #     return self.alpha_of_a(self.a_of_z(z))
-
-    # # ---------------------------------
-    # # alpha and rho
-
-    # def rho_of_alpha(self, alpha: TArrayLike, /) -> TArrayLike:
-    #     """rho from alpha."""
-    #     rho: TArrayLike = np.sqrt((1 + alpha) / 2.0)
-    #     return rho
-
-    # def alpha_of_rho(self, rho: TArrayLike, /) -> TArrayLike:
-    #     """alpha from rho."""
-    #     alpha: TArrayLike = 2 * rho ** 2 - 1
-    #     return alpha
+        return (1.0 / (z + 1.0)) << u.one
 
     # ---------------------------------
-    # scale factor and rho
+    # Scale factor and rho
 
-    def a_of_rho(self, rho: TArrayLike, /) -> TArrayLike:
-        """"""
-        return self.a_matter_radiation_equality * (2 * rho ** 2 - 1)
+    def a_of_rho(self, rho: Quantity | float, /) -> Quantity:
+        """Scale factor from rho."""
+        return (self.a_matter_radiation_equality * (2 * rho**2 - 1)) << u.one
 
-    def rho_of_a(self, a: TArrayLike, /) -> TArrayLike:
-        return np.sqrt((1 + a / self.a_matter_radiation_equality) / 2)
+    def rho_of_a(self, a: Quantity | float, /) -> Quantity:
+        """rho from the scale factor."""
+        return np.sqrt((1 + a / self.a_matter_radiation_equality) / 2) << u.one
 
     # ---------------------------------
-    # redshift and rho
+    # Redshift and rho
 
-    def z_of_rho(self, rho: TArrayLike, /) -> TArrayLike:
+    def z_of_rho(self, rho: Quantity | float, /) -> Quantity:
+        """Redshift from rho."""
         return self.z_of_a(self.a_of_rho(rho))
 
-    def rho_of_z(self, z: TArrayLike, /) -> TArrayLike:
+    def rho_of_z(self, z: Quantity | float, /) -> Quantity:
+        """Rho of redshift."""
         return self.rho_of_a(self.a_of_z(z))

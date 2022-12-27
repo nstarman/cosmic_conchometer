@@ -1,15 +1,6 @@
-# see LICENSE.rst
-
 """Diffusion Damping Distortion."""
 
-##############################################################################
-# IMPORTS
+# LOCAL
+from .core import SpectralDistortion
 
-# PROJECT-SPECIFIC
-from . import spectral
-from .spectral import *
-
-__all__ = spectral.__all__
-
-##############################################################################
-# END
+__all__ = ["SpectralDistortion"]
