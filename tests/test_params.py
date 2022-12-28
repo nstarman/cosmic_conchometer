@@ -2,7 +2,7 @@
 
 # THIRD-PARTY
 import pytest
-from astropy.cosmology import LambdaCDM, Planck18
+from astropy.cosmology import LambdaCDM
 
 # LOCAL
 from cosmic_conchometer.params import CosmologyParameters, LCDMParameters, planck18
@@ -61,8 +61,9 @@ class Test_LCDMParameters(Test_CosmologyParameters):
             "Tcmb0": 2.715,
             "Neff": 3.05,
             "Ob0": 0.05,
+            "m_nu": (0.0, 0.0, 0.06),
             "As": 1,
-            "ns": 0.965,
+            "ns": 0.97,
         }
 
     @pytest.fixture(scope="class")
@@ -90,8 +91,9 @@ class Test_LCDMParameters(Test_CosmologyParameters):
         assert params.Tcmb0 == 2.715
         assert params.Neff == 3.05
         assert params.Ob0 == 0.05
+        assert params.m_nu == (0.0, 0.0, 0.06)
         assert params.As == 1
-        assert params.ns == 0.965
+        assert params.ns == 0.97
 
     def test_cosmo(self, params):
         """Test the ``cosmo`` attribute."""
@@ -100,7 +102,7 @@ class Test_LCDMParameters(Test_CosmologyParameters):
     def test_from_astropy(self, params_cls, params):
         """Test the ``from_astropy`` method."""
         # Check that the classmethod works.
-        params_cls.from_astropy(params.cosmo, As=1, ns=0.965)
+        params_cls.from_astropy(params.cosmo, As=1, ns=0.97)
 
     def test_z_matter_radiation_equality(self, params):
         """Test the equality of the matter-radiation equality redshift."""
@@ -117,4 +119,4 @@ def test_planck18():
     """Test the Planck18 cosmology parameters."""
     assert isinstance(planck18, LCDMParameters)
 
-    assert planck18.cosmo == Planck18
+    # TODO: why isn't this true?

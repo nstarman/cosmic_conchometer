@@ -24,7 +24,9 @@ from .utils import rho2_of_rho1
 
 if TYPE_CHECKING:
     # THIRD-PARTY
-    from numpy.typing import NDArray
+
+    # LOCAL
+    from cosmic_conchometer._typing import NDAf, scalarT
 
 __all__ = [
     "ComputePspllSprp",
@@ -35,9 +37,8 @@ __all__ = [
 # TYPING
 
 ArgsT: TypeAlias = tuple[
-    float, float, float, float, float, float, float, float, float, float, float
+    "NDAf", "NDAf", "NDAf", float, float, "NDAf", "NDAf", "NDAf", "NDAf", "NDAf", "NDAf"
 ]
-
 
 ##############################################################################
 # CODE
@@ -57,65 +58,64 @@ class ComputePspllSprp:
     @property
     def prefactor(self) -> float:
         """The prefactor for the integral."""
-        return 3 * self.lambda0**2 / (8 * float(self.spl_PbarCL(self.rho_domain[-1])))
+        return (
+            3 * self.lambda0**2 / (16 * float(self.spl_PbarCL(self.rho_domain[-1])))
+        )
 
     # ------------------------------------
     # Integrals between knots (vectorized)
 
-    def _integral0(self, args: ArgsT, /) -> NDArray:
+    def _integral0(self, args: ArgsT, /) -> NDAf:
         xi, xj, _, pllrO, sprp, _, _, xjs2, xis2, diffatan, _ = args
         t0 = (
             -sprp * ((xj + pllrO) / xjs2 - (xi + pllrO) / xis2)  # delta 1st term
             + 3 * diffatan  # delta 2nd term
         )
-        return t0 / 2
+        return t0
 
-    def _integral1(self, args: ArgsT, /) -> NDArray:
+    def _integral1(self, args: ArgsT, /) -> NDAf:
         pllrO, sprp, xjpllrO, xipllrO, xjs2, xis2, diffatan, difflog = args[3:]
-        t1 = (
+        t1: NDAf = (
             +(sprp * pllrO * xjpllrO + sprp**3) / xjs2
             - (sprp * pllrO * xipllrO + sprp**3) / xis2
             - 3 * pllrO * diffatan
             + 2 * sprp * difflog
         )
-        return t1 / 2
+        return t1
 
-    def _integral2(self, args: ArgsT, /) -> NDArray:
+    def _integral2(self, args: ArgsT, /) -> NDAf:
         xi, xj, dx, pllrO, sprp, xjpllrO, xipllrO, xjs2, xis2, diffatan, difflog = args
-        t2 = (
+        t2: NDAf = (
             +5 * sprp * dx
             - sprp * xjpllrO * xj**2 / xjs2
             + sprp * xipllrO * xi**2 / xis2
             + (3 * pllrO**2 - 5 * sprp**2) * diffatan
             - 4 * pllrO * sprp * difflog
         )
-        return t2 / 2
+        return t2
 
-    def _integral3(self, args: ArgsT, /) -> NDArray:
+    def _integral3(self, args: ArgsT, /) -> NDAf:
         xi, xj, dx, pllrO, sprp, xjpllrO, xipllrO, xjs2, xis2, diffatan, difflog = args
-        t3 = (
+        t3: NDAf = (
             +3 * sprp * ((xj**2 - xi**2) - 3 * pllrO * dx)
             - sprp * xjpllrO * xj**3 / xjs2
             + sprp * xipllrO * xi**3 / xis2
             - 3 * pllrO * (pllrO**2 - 5 * sprp**2) * diffatan
             + 6 * sprp * (pllrO**2 - 0.5 * sprp**2) * difflog
         )
-        return t3 / 2
+        return t3
 
     # ------------------------------------
 
-    def _visibilities_factor(
-        self,
-        rho: np.floating | np.ndarray,
-        spll: np.floating,
-        sprp: np.floating,
-    ) -> np.floating | np.ndarray:
+    def _visibilities_factor(self, rho: NDAf, spll: scalarT, sprp: scalarT) -> NDAf:
         """Returns [g/P](rho_1)*g(rho2)."""
         rho2 = rho2_of_rho1(rho, spll, sprp, maxrho_domain=self.rho_domain[-1])
-        return self.spl_gbarCL(rho) / self.spl_PbarCL(rho) * self.spl_gbarCL(rho2)
+        gbar: NDAf = self.spl_gbarCL(rho) / self.spl_PbarCL(rho)
+        gbarCL2: NDAf = self.spl_gbarCL(rho2)
+        return gbar * gbarCL2
 
     def _make_visibilities_spline(
-        self, rho: NDArray, spll: np.floating, sprp: np.floating
+        self, rho: NDAf, spll: scalarT, sprp: scalarT
     ) -> CubicSpline:
         gs = self._visibilities_factor(rho, spll, sprp)
         gs[gs < 0] = 0
@@ -145,7 +145,7 @@ class ComputePspllSprp:
         p0 = -c3 * xi**3 + c2 * xi**2 - c1 * xi + c0
         return p3, p2, p1, p0
 
-    def _setup(self, rho: NDArray, spll: float, sprp: float) -> ArgsT:
+    def _setup(self, rho: NDAf, spll: float, sprp: float) -> ArgsT:
         xi = rho[:-1]  # (N-1,)
         xj = rho[1:]  # (N-1,)
         dx = xj - xi  # (N-1,)
@@ -166,21 +166,19 @@ class ComputePspllSprp:
         args = xi, xj, dx, pllrO, sprp, xjpllrO, xipllrO, xjs2, xis2, diffatan, difflog
         return args
 
-    def __call__(
-        self, rho: np.floating | NDArray, spll: float, sprp: float
-    ) -> np.floating | NDArray:
+    def __call__(self, rho: NDAf, spll: float, sprp: float) -> NDAf:
         r"""Evaluate :math:`\mathcal{P}(s_{||}, s_\perp)`.
 
         Parameters
         ----------
-        rho: np.floating | NDArray
+        rho: NDArray
             Rho.
         spll, sprp: float
             spll, sprp.
 
         Returns
         -------
-        np.floating | NDArray
+        NDArray
         """
         _rho = rho.to_value(u.one) if isinstance(rho, u.Quantity) else rho
         spl = self._make_visibilities_spline(_rho, spll, sprp)  # units of inverse Mpc
@@ -193,27 +191,30 @@ class ComputePspllSprp:
         t2 = self._integral2(args)
         t3 = self._integral3(args)
 
-        return self.prefactor * np.sum(p0 * t0 + p1 * t1 + p2 * t2 + p3 * t3)
+        P: NDAf = self.prefactor * np.sum(p0 * t0 + p1 * t1 + p2 * t2 + p3 * t3)
+        return P
 
     # ==========================================================================
     # On a grid
 
     def _make_rho(
         self,
-        spll: float,
-        sprp: float,
+        spll: scalarT,
+        sprp: scalarT,
+        *,
         n_sprp: int,
         n_rho_center: int,
         n_rho_lr: int,
-    ) -> NDArray:
+    ) -> NDAf:
         # Center region
         center = self.rho_domain[-1] - spll
-        center_lower = max(center - n_sprp * np.abs(sprp), self.rho_domain[0])
-        center_upper = min(center + n_sprp * np.abs(sprp), self.rho_domain[1])
+        center_lower: scalarT = max(center - n_sprp * np.abs(sprp), self.rho_domain[0])
+        center_upper: scalarT = min(center + n_sprp * np.abs(sprp), self.rho_domain[1])
 
         # Add lower rho, if center doesn't hit lower bound
+        rho_lower: NDAf
         if center_lower == self.rho_domain[0]:
-            rho_lower = []
+            rho_lower = np.array([])
         else:
             rho_lower = np.linspace(
                 self.rho_domain[0] + 1e-5, center_lower, num=n_rho_lr
@@ -222,23 +223,27 @@ class ComputePspllSprp:
         rho_center = np.linspace(center_lower, center_upper, num=n_rho_center)
 
         # Add upper rho, if center doesn't hit upper bound
+        rho_upper: NDAf
         if center_upper == self.rho_domain[1]:
-            rho_upper = []
+            rho_upper = np.array([])
         else:
             rho_upper = np.linspace(center_upper, self.rho_domain[1], num=n_rho_lr)
 
-        rho = np.concatenate((rho_lower[:-1], rho_center, rho_upper[1:]))
-        return np.unique(rho)  # TODO! not need this step
+        # TODO: not need the `unique` check
+        rho: NDAf = np.unique(
+            np.concatenate((rho_lower[:-1], rho_center, rho_upper[1:]))
+        )
+        return rho
 
     def compute_on_grid(
         self,
-        Spll: NDArray,
-        Sprp: NDArray,
+        Spll: NDAf,
+        Sprp: NDAf,
         *,
         n_sprp: int = 15,
         n_rho_center: int = 1_000,
         n_rho_lr: int = 1_000,
-    ) -> tuple[NDArray, float]:
+    ) -> tuple[NDAf, float]:
         """Compute on a grid.
 
         Parameters
@@ -297,11 +302,11 @@ class ComputePspllSprp:
 
     def compute_fft(
         self,
-        spll: NDArray,
-        sprp: NDArray,
-        Parr: NDArray | RectBivariateSpline,
+        spll: NDAf,
+        sprp: NDAf,
+        Parr: NDAf | RectBivariateSpline,
         **kwargs: Any,
-    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
+    ) -> tuple[NDAf, NDAf, NDAf, NDAf]:
         """Compute the FFT."""
         P = Parr(spll, sprp) if isinstance(Parr, RectBivariateSpline) else Parr
 
@@ -325,39 +330,39 @@ class ComputePspllSprp:
 
 @overload
 def fft_P(
-    spll: NDArray,
-    sprp: NDArray,
-    P: NDArray,
+    spll: NDAf,
+    sprp: NDAf,
+    P: NDAf,
     *,
     sprp_lnpad: float = ...,
     full_output: Literal[False] = ...,  # https://github.com/python/mypy/issues/6580
     _dering: bool = ...,
-) -> tuple[NDArray, NDArray, NDArray]:
+) -> tuple[NDAf, NDAf, NDAf]:
     ...
 
 
 @overload
 def fft_P(
-    spll: NDArray,
-    sprp: NDArray,
-    P: NDArray,
+    spll: NDAf,
+    sprp: NDAf,
+    P: NDAf,
     *,
     sprp_lnpad: float = ...,
     full_output: Literal[True],
     _dering: bool = ...,
-) -> tuple[NDArray, NDArray, NDArray, NDArray]:
+) -> tuple[NDAf, NDAf, NDAf, NDAf]:
     ...
 
 
 def fft_P(
-    spll: NDArray,
-    sprp: NDArray,
-    P: NDArray,
+    spll: NDAf,
+    sprp: NDAf,
+    P: NDAf,
     *,
     sprp_lnpad: float = 8,
     full_output: bool = False,
     _dering: bool = True,
-) -> (tuple[NDArray, NDArray, NDArray] | tuple[NDArray, NDArray, NDArray, NDArray]):
+) -> (tuple[NDAf, NDAf, NDAf] | tuple[NDAf, NDAf, NDAf, NDAf]):
     r"""FFT :math:`\mathcal{P}`.
 
     Parameters

@@ -36,6 +36,7 @@
         "coverage[toml]",
         "pytest",
         "pytest-astropy",
+        "pytest-mpl",
     ]
     docs = [
         "graphviz",
@@ -107,6 +108,7 @@ build-backend = "setuptools.build_meta"
 
 
 [tool.mypy]
+    strict = true
     disallow_subclassing_any = false
     disallow_untyped_defs = true
     ignore_missing_imports = true
@@ -116,6 +118,7 @@ build-backend = "setuptools.build_meta"
     warn_unused_configs = true
     warn_unreachable = true
     exclude = '''(^|/)tests/'''
+    plugins = "numpy.typing.mypy_plugin"
 
 [[tool.mypy.overrides]]
     module = "*/tests/*"
@@ -136,7 +139,10 @@ astropy_header = true
 doctest_plus = "enabled"
 text_file_format = "rst"
 doctest_norecursedirs="*/cosmic_conchometer/extern/*"
-addopts = "--doctest-rst"
+addopts = [
+    "--doctest-rst",
+    "--mpl-hash-library=image_hashes.json"
+]
 
 
 [tool.ruff]
@@ -177,4 +183,4 @@ addopts = "--doctest-rst"
 
 [tool.ruff.per-file-ignores]
     "docs/conf.py" = ["A001"]
-    "test_*.py" = ["ANN", "ARG005", "D100", "D101", "D102", "N8", "S101"]
+    "test_*.py" = ["ANN", "ARG005", "D100", "D101", "D102", "N8", "S101", "TID252"]

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 # THIRD-PARTY
 import astropy.cosmology.units as cu
+import astropy.units as u
 from astropy.cosmology import LambdaCDM, Planck18
 
 # LOCAL
@@ -46,7 +47,7 @@ class LCDMParameters(CosmologyParameters):
     Tcmb0: float  # units of K
     Neff: float
     Ob0: float
-    # m_nu e.g. tuple[float, ...]  # TODO!
+    m_nu: tuple[float, ...]  # units of eV
     As: float
     ns: float
 
@@ -58,12 +59,13 @@ class LCDMParameters(CosmologyParameters):
             self,
             "cosmo",
             LambdaCDM(
-                H0=100 * self.h,
+                H0=100 * self.h * (u.km / u.s / u.Mpc),
                 Om0=self.Om0,
                 Ode0=self.Ode0,
-                Tcmb0=self.Tcmb0,
+                Tcmb0=self.Tcmb0 * u.K,
                 Neff=self.Neff,
                 Ob0=self.Ob0,
+                m_nu=self.m_nu * u.eV,
             ),
         )
 
@@ -93,6 +95,7 @@ class LCDMParameters(CosmologyParameters):
             Tcmb0=float(cosmo.Tcmb0.to_value("K")),
             Neff=float(cosmo.Neff),
             Ob0=float(cosmo.Ob0),
+            m_nu=tuple(cosmo.m_nu.to_value("eV")),
             As=As,
             ns=ns,
         )
@@ -104,4 +107,4 @@ class LCDMParameters(CosmologyParameters):
 
 
 # TODO: As
-planck18 = LCDMParameters.from_astropy(Planck18, As=1, ns=0.9652)
+planck18 = LCDMParameters.from_astropy(Planck18, As=1, ns=0.972)

@@ -5,7 +5,7 @@ from weakref import ProxyType
 
 # THIRD-PARTY
 import pytest
-from astropy.cosmology import Planck15
+from astropy.cosmology import Planck18
 
 # LOCAL
 from cosmic_conchometer.common import CosmologyDependent
@@ -27,12 +27,12 @@ class Test_CosmologyDependent:
     @pytest.fixture(scope="class")
     def cosmo_cls(self):
         """Fixture for the cosmology class."""
-        return type(Planck15)
+        return type(Planck18)
 
     @pytest.fixture(scope="class")
     def cosmo(self):
         """Fixture for the cosmology class."""
-        return Planck15
+        return Planck18
 
     @pytest.fixture(scope="class")
     def cdep(self, cdep_cls, cosmo):

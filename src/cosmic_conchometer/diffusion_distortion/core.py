@@ -8,15 +8,13 @@ from collections.abc import Mapping
 from dataclasses import InitVar, dataclass
 from functools import cached_property
 from types import MappingProxyType
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 # THIRD-PARTY
 import astropy.cosmology.units as cu
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
-from astropy.units import Quantity
 from classy import Class as Classy
 from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
 
@@ -24,13 +22,20 @@ from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
 from cosmic_conchometer.common import CosmologyDependent
 from cosmic_conchometer.diffusion_distortion.prob_2ls import ComputePspllSprp
 
+if TYPE_CHECKING:
+    # THIRD-PARTY
+    from astropy.units import Quantity
+    from matplotlib.figure import Figure
+    from numpy.typing import ArrayLike, NDArray
+
+
 __all__: list[str] = []
 
 
 ##############################################################################
 # PARAMETERS
 
-IUSType = Callable[[npt.ArrayLike], np.ndarray]
+IUSType = Callable[["ArrayLike"], "NDArray[np.floating[Any]]"]
 
 
 ##############################################################################
@@ -58,8 +63,6 @@ class SpectralDistortion(CosmologyDependent):
 
         # --- thermodynamic quantities --- #
 
-        self._class_thermo: Mapping[str, np.ndarray]
-
         th = self.class_cosmo.get_thermodynamics()
 
         # time-order everything (inplace)
@@ -76,12 +79,9 @@ class SpectralDistortion(CosmologyDependent):
         object.__setattr__(self, "z_domain", z_domain)
 
         # rename and assign units
-        it: tuple[tuple[str, str, u.Unit], ...] = (
-            ("conf. time [Mpc]", "conformal time", u.Unit("Mpc")),
-            ("kappa' [Mpc^-1]", "kappa'", u.Unit("1 / Mpc")),
-            ("exp(-kappa)", "exp(-kappa)", u.Unit("1")),
+        it: tuple[tuple[str, str, u.UnitBase], ...] = (
+            ("z", "z", cu.redshift),
             ("g [Mpc^-1]", "g", u.Unit("1 / Mpc")),
-            ("Tb [K]", "Tb", u.Unit("K")),
         )
         for name, newname, unit in it:
             th[newname] = th.pop(name) * unit
@@ -93,6 +93,7 @@ class SpectralDistortion(CosmologyDependent):
         for k in th.keys():
             th[k].flags.writeable = False
 
+        self._class_thermo: Mapping[str, NDArray[np.floating[Any]]]
         object.__setattr__(self, "_class_thermo", th)
 
         # --- splines --- #
@@ -106,8 +107,8 @@ class SpectralDistortion(CosmologyDependent):
         # Instead, to get the right normalization we will define PbarCL from an integral
         # over gbarCL.
         integral = [self._spl_gbarCL.integral(a, b) for a, b in itertools.pairwise(rho)]
-        class_P = self.lambda0.value * np.concatenate(([0], np.cumsum(integral)))
-        _spl_PbarCL = IUSpline(rho, class_P, ext=2)
+        PbarCL = self.lambda0.value * np.concatenate(([0], np.cumsum(integral)))
+        _spl_PbarCL = IUSpline(rho, PbarCL, ext=2)
 
         # normalize the spline
         a, b = self.rho_domain
@@ -116,7 +117,7 @@ class SpectralDistortion(CosmologyDependent):
         object.__setattr__(self, "_spl_integral_norm", 1 / prob)
 
         self._spl_PbarCL: IUSpline
-        object.__setattr__(self, "_spl_PbarCL", IUSpline(rho, class_P / prob, ext=2))
+        object.__setattr__(self, "_spl_PbarCL", IUSpline(rho, PbarCL / prob, ext=2))
 
         # --- assistive --- #
 
@@ -134,6 +135,15 @@ class SpectralDistortion(CosmologyDependent):
                 spl_PbarCL=self._spl_PbarCL,
             ),
         )
+
+    @property
+    def class_thermo(self) -> MappingProxyType[str, Any]:
+        """CLASS thermodynamics."""
+        if "class_thermo" in self.__dict__:
+            ct: MappingProxyType[str, Any] = self.__dict__["class_thermo"]
+        else:
+            self.__dict__["class_thermo"] = ct = MappingProxyType(self._class_thermo)
+        return ct
 
     # ===============================================================
     # Properties
@@ -153,13 +163,6 @@ class SpectralDistortion(CosmologyDependent):
 
     # --------
 
-    @cached_property  # TODO! move
-    def rho_eq(self) -> Quantity:
-        """Rho at matter-radiation equality."""
-        return self.distance_converter.rho_matter_radiation_equality
-
-    # --------
-
     @property
     def z_recombination(self) -> Quantity:
         """z of peak of visibility function."""
@@ -170,28 +173,20 @@ class SpectralDistortion(CosmologyDependent):
         """rho of peak of visibility function."""
         return self._class_thermo["rho"][self._class_thermo["g"].argmax()] << u.one
 
-    # --------------------------------------------
-    # CLASS properties
-
-    @property
-    def class_thermo(self) -> MappingProxyType[str, Any]:
-        """CLASS thermodynamics."""
-        if "class_thermo" in self.__dict__:
-            ct: MappingProxyType[str, Any] = self.__dict__["class_thermo"]
-        else:
-            self.__dict__["class_thermo"] = ct = MappingProxyType(self._class_thermo)
-        return ct
-
     # ===============================================================
 
-    def plot_CLASS_points_distribution(self, *, density: bool = False) -> plt.Figure:
+    def plot_CLASS_points_distribution(
+        self, *, density: bool = False, figure_kw: Mapping[str, Any] | None = None
+    ) -> Figure:
         """Plot the distribution of evaluation points."""
-        fig = plt.figure()
+        fig = plt.figure(**(figure_kw or {}))
         ax = fig.add_subplot()
 
-        ax.hist(np.log10(self._class_thermo["z"][:-1]), density=density, bins=30)
+        z = cast("Quantity", self._class_thermo["z"])
+
+        ax.hist(np.log10(z.value), density=density, bins=30)
         ax.axvline(
-            np.log10(self.z_recombination),
+            np.log10(self.z_recombination.to_value(cu.redshift)),
             c="k",
             ls="--",
             label="Recombination",
@@ -204,7 +199,7 @@ class SpectralDistortion(CosmologyDependent):
 
         return fig
 
-    def plot_zv_choice(self) -> plt.Figure:
+    def plot_zv_choice(self) -> Figure:
         """Plot ``z_v`` choice."""
         fig = plt.figure(figsize=(10, 4))
 

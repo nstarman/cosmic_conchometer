@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # STDLIB
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 # THIRD-PARTY
 import numpy as np
@@ -14,21 +14,36 @@ from cosmic_conchometer.params import LCDMParameters
 
 if TYPE_CHECKING:
     # THIRD-PARTY
-    from astropy.units import Quantity
-    from numpy.typing import NDArray
+
+    # LOCAL
+    from cosmic_conchometer._typing import NDAf, scalarT
 
 __all__ = ["baumann_transfer_function"]
+
+
+##############################################################################
+
+
+class TransferFunctionCallable(Protocol):
+    """Protocol for transfer function functions."""
+
+    def __call__(
+        self, cosmo: LCDMParameters, kmag: scalarT | NDAf, /, *, z_last_scatter: scalarT
+    ) -> NDAf:
+        """Transfer function."""
+        ...
+
 
 ##############################################################################
 
 
 def baumann_transfer_function(
     cosmo: LCDMParameters,
-    kmag: float | NDArray,
+    kmag: scalarT | NDAf,
     /,
     *,
-    z_last_scatter: float | NDArray | Quantity = 1_100.0,
-) -> NDArray:
+    z_last_scatter: scalarT = 1_100.0,
+) -> NDAf:
     """Transfer function from Baumann.
 
     Parameters
@@ -46,15 +61,19 @@ def baumann_transfer_function(
     NDArray
     """
     # lambda0 from distance_measures
-    aeq = 1.0 / (1.0 + cosmo.z_matter_radiation_equality)
-    lambda0 = (speed_of_light / (100 * cosmo.h)) * np.sqrt((8 * aeq) / cosmo.Om0)
+    aeq: scalarT = 1.0 / (1.0 + cosmo.z_matter_radiation_equality.value)
+    lambda0: scalarT = (speed_of_light / (100 * cosmo.h)) * np.sqrt(
+        (8 * aeq) / cosmo.Om0
+    )
 
     R = 3e4 * cosmo.Ob0 * cosmo.h**2 / (1 + z_last_scatter)
 
-    alpha_ls = (1 + cosmo.z_matter_radiation_equality) / (1 + z_last_scatter)
+    alpha_ls: scalarT = (1 + cosmo.z_matter_radiation_equality.value) / (
+        1 + z_last_scatter
+    )
     kappa = R / alpha_ls
 
-    sig2LS = (
+    sig2LS: scalarT = (
         lambda0
         / np.sqrt(6 * kappa)
         * (

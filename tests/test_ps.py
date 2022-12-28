@@ -15,7 +15,7 @@ from cosmic_conchometer.ps import power_spectrum
 ##############################################################################
 
 
-@pytest.mark.parametrize(("kmag", "pivot_scale", "expect"), [(0, 1, 0), (inf, 1, 0)])
+@pytest.mark.parametrize(("kmag", "pivot_scale", "expect"), [(0, 1, inf), (inf, 1, 0)])
 def test_power_spectrum(kmag, pivot_scale, expect):
     """Test :func:`~cosmic_conchometer.ps.power_spectrum`."""
     assert power_spectrum(planck18, kmag, pivot_scale=pivot_scale) == expect

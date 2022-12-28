@@ -5,7 +5,7 @@ from __future__ import annotations
 # STDLIB
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 from weakref import ProxyType
 
 # THIRD-PARTY
@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 ##############################################################################
-# PARAMETERS
+# TYPING
 
 # static types
 TZ = TypeVar("TZ", float, "Quantity")  # u.Quantity[dimensionless]
@@ -34,6 +34,10 @@ TZ = TypeVar("TZ", float, "Quantity")  # u.Quantity[dimensionless]
 ##############################################################################
 # CODE
 ##############################################################################
+
+
+def _residual(z: TZ, cosmo: FLRW) -> TZ:
+    return cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z))  # type: ignore[no-any-return]
 
 
 @overload
@@ -52,12 +56,7 @@ def z_matter_radiation_equality(
 
 @overload
 def z_matter_radiation_equality(
-    cosmo: FLRW,
-    zmin: TZ,
-    zmax: TZ,
-    *,
-    full_output: Literal[False] = ...,
-    **rootkw: Any,
+    cosmo: FLRW, zmin: TZ, zmax: TZ, *, full_output: Literal[False] = ..., **rootkw: Any
 ) -> Quantity:
     ...
 
@@ -86,7 +85,7 @@ def z_matter_radiation_equality(
     Parameters
     ----------
     cosmo : `~astropy.cosmology.Cosmology`
-        Must have methods ``Om(z)`` and ``Ogamma(z)``.
+        Must have methods ``Om(z)``, ``Ogamma(z)``, and ``Onu(z)``.
     zmin, zmax : float or scalar `~astropy.units.Quantity` (optional)
         The min/max redshift in which to search for matter-radiation equality.
     full_output : bool (optional, keyword-only)
@@ -99,15 +98,14 @@ def z_matter_radiation_equality(
     -------
     z_eq : scalar `~astropy.units.Quantity` [dimensionless]
         The redshift at matter-radiation equality.
-    tuple
+    `scipy.optimize.RootResults`
         Full results of root finder if `full_output` is True
     """
     # residual function
-    def residual(z: TZ) -> TZ:
-        return cast("TZ", cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z)))
-
-    zeq, rest = optim.brentq(residual, zmin, zmax, full_output=True, **rootkw)
-    z_eq = cast("Quantity", zeq)
+    zeq, rest = optim.brentq(
+        _residual, zmin, zmax, args=(cosmo,), full_output=True, **rootkw
+    )
+    z_eq = zeq << cu.redshift
 
     return z_eq if not full_output else (z_eq, rest)
 
@@ -209,7 +207,7 @@ class DistanceMeasureConverter:
     @property
     def rho_today(self) -> Quantity:
         """Rho today."""
-        return self.rho_of_z(self.z_today)  # TODO: hard-code?
+        return np.float64("41.16336546526635") << u.one
 
     # ---------------------------------
     # Redshift and scale factor
@@ -226,19 +224,39 @@ class DistanceMeasureConverter:
     # Scale factor and rho
 
     def a_of_rho(self, rho: Quantity | float, /) -> Quantity:
-        """Scale factor from rho."""
-        return (self.a_matter_radiation_equality * (2 * rho**2 - 1)) << u.one
+        """Scale factor from rho.
+
+        Clipped to the range [``a_begin``, ``a_today``].
+        """
+        return (
+            np.clip(
+                self.a_matter_radiation_equality * (2 * rho**2 - 1),
+                self.a_begin,
+                self.a_today,
+            )
+            << u.one
+        )
 
     def rho_of_a(self, a: Quantity | float, /) -> Quantity:
-        """rho from the scale factor."""
-        return np.sqrt((1 + a / self.a_matter_radiation_equality) / 2) << u.one
+        """rho from the scale factor.
+
+        Clipped to the range [``rho_begin``, ``rho_today``].
+        """
+        return (
+            np.clip(
+                np.sqrt((1 + a / self.a_matter_radiation_equality) / 2),
+                self.rho_begin,
+                self.rho_today,
+            )
+            << u.one
+        )
 
     # ---------------------------------
     # Redshift and rho
 
     def z_of_rho(self, rho: Quantity | float, /) -> Quantity:
         """Redshift from rho."""
-        return self.z_of_a(self.a_of_rho(rho))
+        return np.clip(self.z_of_a(self.a_of_rho(rho)), 0, None) << cu.redshift
 
     def rho_of_z(self, z: Quantity | float, /) -> Quantity:
         """Rho of redshift."""

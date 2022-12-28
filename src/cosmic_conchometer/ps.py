@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # STDLIB
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Protocol
 
 # THIRD-PARTY
 import numpy as np
@@ -13,22 +13,36 @@ from cosmic_conchometer.params import LCDMParameters
 
 if TYPE_CHECKING:
     # THIRD-PARTY
-    from astropy.units import Quantity
 
-__all__: list[str] = []
+    # LOCAL
+    from cosmic_conchometer._typing import NDAf, scalarT
 
-T = TypeVar("T", np.ndarray, "Quantity")
+__all__ = ["power_spectrum"]
+
+##############################################################################
+
+
+class PowerSpectrumCallable(Protocol):
+    """Protocol for power spectrum functions."""
+
+    def __call__(
+        self,
+        cosmo: LCDMParameters,
+        kmag: scalarT | NDAf,
+        /,
+        *,
+        pivot_scale: scalarT | NDAf,
+    ) -> NDAf:
+        """Power spectrum function."""
+        ...
+
 
 ##############################################################################
 
 
 def power_spectrum(
-    cosmo: LCDMParameters,
-    kmag: T,
-    /,
-    *,
-    pivot_scale: T,
-) -> T:
+    cosmo: LCDMParameters, kmag: scalarT | NDAf, /, *, pivot_scale: scalarT | NDAf
+) -> NDAf:
     """Simple power spectrum.
 
     Parameters

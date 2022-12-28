@@ -19,5 +19,8 @@ class CLASS:
 
     def get_thermodynamics(self) -> dict[str, Any]:
         """Make fake thermodynamics data."""
-        z = np.arange(0, 1000, 100)
-        return {"z": z, "exp(-kappa)": 1 / (1 + z), "g [Mpc^-1]": z / (1 + z)}
+        z = np.unique(np.geomspace(1, 3000, 10_000))
+        return {
+            "z": z,
+            "g [Mpc^-1]": 50 * np.exp(-((z - 1089) ** 2) / 200),
+        }
