@@ -23,7 +23,7 @@
     ]
     dependencies = [
         "astropy>=5.2",
-        "classy",
+        "classy<3",
         "numpy>=1.22",
         "pooch>=1.6",
         "scipy",
