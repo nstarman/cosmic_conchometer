@@ -50,35 +50,31 @@ class SpectralDistortion(CosmologyDependent):
     Parameters
     ----------
     cosmo : `~astropy.cosmology.core.Cosmology`
+        Astroy cosmology instance.
     class_cosmo : :class:`classy.Class`
-    AkFunc: Callable, str, or None (optional, keyword-only)
-        The function to calculate :math:`A(\vec{k})`
+        CLASS cosmoloy instance that corresponds to ``cosmo``.
+    z_domain : tuple[float, float]
+        Redshift domain to consider. The first element is the maximum redshift, the
+        second is the minimum redshift.
     """
 
     class_cosmo: Classy
-    z_bounds: InitVar[tuple[float | None, float]] = (None, 100)
+    z_bounds: InitVar[tuple[float, float]] = (5500, 100)  # TODO: make Quantity
 
-    def __post_init__(self, z_bounds: tuple[float | None, float] = (None, 100)) -> None:
+    def __post_init__(self, z_bounds: tuple[float, float]) -> None:  # type: ignore[override] # noqa: E501
         super().__post_init__()
 
         # --- thermodynamic quantities --- #
 
         th = self.class_cosmo.get_thermodynamics()
 
-        # time-order everything (inplace)
+        # time-order everything & cut to be in z_domain (inplace)
+        _in_bounds = (min(z_bounds) <= th["z"]) & (th["z"] <= max(z_bounds))
         for k, v in th.items():
-            th[k] = v[::-1]
+            th[k] = v[_in_bounds][::-1]
             th[k].flags.writeable = False
 
-        # now that have z array, can fix unbounded min(z_domain)
-        if z_bounds[0] is None:
-            z_domain = (th["z"][0], z_bounds[1])
-        else:
-            z_domain = z_bounds
-        self.z_domain: tuple[float, float]
-        object.__setattr__(self, "z_domain", z_domain)
-
-        # rename and assign units
+        # Rename and assign units
         it: tuple[tuple[str, str, u.UnitBase], ...] = (
             ("z", "z", cu.redshift),
             ("g [Mpc^-1]", "g", u.Unit("1 / Mpc")),
@@ -86,10 +82,10 @@ class SpectralDistortion(CosmologyDependent):
         for name, newname, unit in it:
             th[newname] = th.pop(name) * unit
 
-        # derived values
+        # Add derived values
         th["rho"] = self.distance_converter.rho_of_z(th["z"])
 
-        # make everything immutable again, b/c added stuff
+        # Ensure everything immutable again, b/c added stuff
         for k in th.keys():
             th[k].flags.writeable = False
 
@@ -98,11 +94,21 @@ class SpectralDistortion(CosmologyDependent):
 
         # --- splines --- #
 
-        rho = th["rho"]
+        rho = th["rho"].value
+        g = th["g"].to_value(1 / u.Mpc).copy()
+        g.flags.writeable = True
 
+        # ext 1 makes stuff 0, which is correct, but introduces a small discontinuity.
         self._spl_gbarCL: IUSpline
-        object.__setattr__(self, "_spl_gbarCL", IUSpline(rho, th["g"], ext=1))
-        # ext 1 makes stuff 0  # TODO! does this introduce a discontinuity?
+        object.__setattr__(self, "_spl_gbarCL", IUSpline(rho, g, ext=1))
+
+        # For the log we need to avoid log(0), and also avoid a discontinuity,
+        # and ensure that the extrapolation is reasonable. Ext 3 returns the bou
+        # value, which is what we want.
+        g = g.copy()
+        g[g <= 0] = 1e-300  # should be small enough that discontinuity is negligible
+        self._spl_ln_gbarCL: IUSpline
+        object.__setattr__(self, "_spl_ln_gbarCL", IUSpline(rho, np.log(g), ext=3))
 
         # Instead, to get the right normalization we will define PbarCL from an integral
         # over gbarCL.
@@ -112,12 +118,20 @@ class SpectralDistortion(CosmologyDependent):
 
         # normalize the spline
         a, b = self.rho_domain
-        prob = self.lambda0.value * self._spl_gbarCL.integral(a, b) / _spl_PbarCL(b)
+        norm = self.lambda0.value * self._spl_gbarCL.integral(a, b) / _spl_PbarCL(b)
         self._spl_integral_norm: float
-        object.__setattr__(self, "_spl_integral_norm", 1 / prob)
+        object.__setattr__(self, "_spl_integral_norm", 1 / norm)
 
+        norm_PbarCL = PbarCL / norm
         self._spl_PbarCL: IUSpline
-        object.__setattr__(self, "_spl_PbarCL", IUSpline(rho, PbarCL / prob, ext=2))
+        object.__setattr__(self, "_spl_PbarCL", IUSpline(rho, norm_PbarCL, ext=2))
+
+        # For the log we need to avoid log(0) and also avoid a discontinuity
+        norm_PbarCL[0] = norm_PbarCL[1]  # known to be 0, avoid log(0)
+        lnPbarCL = np.log(norm_PbarCL)
+        lnPbarCL[0] = lnPbarCL[1] - (lnPbarCL[2] - lnPbarCL[1])  # assign by extrapolate
+        self._spl_ln_PbarCL: IUSpline
+        object.__setattr__(self, "_spl_ln_PbarCL", IUSpline(rho, lnPbarCL, ext=2))
 
         # --- assistive --- #
 
@@ -131,8 +145,8 @@ class SpectralDistortion(CosmologyDependent):
                     float(self.rho_domain[0].to_value(u.one)),
                     float(self.rho_domain[1].to_value(u.one)),
                 ),  # TODO! confirm (min, max)
-                spl_gbarCL=self._spl_gbarCL,
-                spl_PbarCL=self._spl_PbarCL,
+                spl_ln_gbarCL=self._spl_ln_gbarCL,
+                spl_ln_PbarCL=self._spl_ln_PbarCL,
             ),
         )
 
@@ -149,12 +163,15 @@ class SpectralDistortion(CosmologyDependent):
     # Properties
 
     @cached_property
+    def z_domain(self) -> tuple[Quantity, Quantity]:
+        """z domain of validity."""
+        return (self._class_thermo["z"][0], self._class_thermo["z"][-1])
+
+    @cached_property
     def rho_domain(self) -> tuple[Quantity, Quantity]:
         """Rho domain of validity."""
-        return (
-            self.distance_converter.rho_of_z(self.z_domain[0]),
-            self.distance_converter.rho_of_z(self.z_domain[1]),
-        )
+        return (self._class_thermo["rho"][0], self._class_thermo["rho"][-1])
+        # return (
 
     @property
     def maxrho_domain(self) -> Quantity:

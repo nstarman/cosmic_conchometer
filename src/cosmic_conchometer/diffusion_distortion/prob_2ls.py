@@ -4,9 +4,8 @@ from __future__ import annotations
 
 # STDLIB
 import itertools
-import warnings
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias, overload
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast, overload
 
 # THIRD-PARTY
 import astropy.units as u
@@ -52,14 +51,17 @@ class ComputePspllSprp:
     lambda0: float  # [Mpc]
     rho_domain: tuple[float, float]  # (min, max)
 
-    spl_gbarCL: InterpolatedUnivariateSpline  # ([dimensionless]) -> [Mpc]
-    spl_PbarCL: InterpolatedUnivariateSpline  # ([dimensionless]) -> [Mpc]
+    spl_ln_gbarCL: InterpolatedUnivariateSpline  # ([dimensionless]) -> [Mpc]
+    spl_ln_PbarCL: InterpolatedUnivariateSpline  # ([dimensionless]) -> [Mpc]
 
     @property
-    def prefactor(self) -> float:
+    def prefactor(self) -> float | scalarT:
         """The prefactor for the integral."""
-        return (
-            3 * self.lambda0**2 / (16 * float(self.spl_PbarCL(self.rho_domain[-1])))
+        return cast(
+            "float | scalarT",
+            3
+            * self.lambda0**2
+            / (16 * np.exp(self.spl_ln_PbarCL(self.rho_domain[-1]))),
         )
 
     # ------------------------------------
@@ -108,18 +110,19 @@ class ComputePspllSprp:
     # ------------------------------------
 
     def _visibilities_factor(self, rho: NDAf, spll: scalarT, sprp: scalarT) -> NDAf:
-        """Returns [g/P](rho_1)*g(rho2)."""
+        """Returns log [g/P](rho_1)*g(rho2)."""
         rho2 = rho2_of_rho1(rho, spll, sprp, maxrho_domain=self.rho_domain[-1])
-        gbar: NDAf = self.spl_gbarCL(rho) / self.spl_PbarCL(rho)
-        gbarCL2: NDAf = self.spl_gbarCL(rho2)
-        return gbar * gbarCL2
+        vf: NDAf = np.exp(
+            self.spl_ln_gbarCL(rho) - self.spl_ln_PbarCL(rho) + self.spl_ln_gbarCL(rho2)
+        )
+        return vf
 
     def _make_visibilities_spline(
         self, rho: NDAf, spll: scalarT, sprp: scalarT
     ) -> CubicSpline:
         gs = self._visibilities_factor(rho, spll, sprp)
         gs[gs < 0] = 0
-        gs[np.isnan(gs)] = 0  # when denominator is 0, but numerators are 0
+        gs[np.isnan(gs)] = 0  # shouldn't happen
         return CubicSpline(rho, gs)
 
     def _global_poly_coeffs_from_ppoly_coeffs(
@@ -266,32 +269,18 @@ class ComputePspllSprp:
         Parr = np.zeros_like(Spll)
         shape = Parr.shape
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            warnings.filterwarnings(
-                "ignore",
-                category=RuntimeWarning,
-                message="divide by zero encountered in divide",
+        for i, j in tqdm.tqdm(
+            itertools.product(range(shape[0]), range(shape[1])),
+            total=shape[0] * shape[1],
+        ):
+            rho = self._make_rho(
+                Spll[i, j],
+                Sprp[i, j],
+                n_sprp=n_sprp,
+                n_rho_center=n_rho_center,
+                n_rho_lr=n_rho_lr,
             )
-            warnings.filterwarnings(
-                "ignore",
-                category=RuntimeWarning,
-                message="invalid value encountered in multiply",
-            )
-
-            for i, j in tqdm.tqdm(
-                itertools.product(range(shape[0]), range(shape[1])),
-                total=shape[0] * shape[1],
-            ):
-                rho = self._make_rho(
-                    Spll[i, j],
-                    Sprp[i, j],
-                    n_sprp=n_sprp,
-                    n_rho_center=n_rho_center,
-                    n_rho_lr=n_rho_lr,
-                )
-
-                Parr[i, j] = self(rho, Spll[i, j], Sprp[i, j])
+            Parr[i, j] = self(rho, Spll[i, j], Sprp[i, j])
 
         _spl = RectBivariateSpline(Spll[:, 0], Sprp[0, :], Parr, kx=3, ky=3, s=0)
         correction = _spl.integral(
