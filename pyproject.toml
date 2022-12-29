@@ -25,7 +25,7 @@
         "astropy>=5.2",
         "classy",
         "numpy>=1.22",
-        "pooch>1.20",
+        "pooch>=1.6",
         "scipy",
         "tqdm",
     ]
