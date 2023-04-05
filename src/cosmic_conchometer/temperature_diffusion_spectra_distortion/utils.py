@@ -2,21 +2,16 @@
 
 from __future__ import annotations
 
-# STDLIB
 from typing import TYPE_CHECKING
 
-# THIRD-PARTY
 import numpy as np
 
 if TYPE_CHECKING:
-    # LOCAL
     from cosmic_conchometer._typing import NDAf, scalarT
 
 
 __all__: list[str] = []
 
-##############################################################################
-# CODE
 ##############################################################################
 
 

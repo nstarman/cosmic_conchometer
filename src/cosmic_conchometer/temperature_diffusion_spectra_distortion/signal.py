@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-# STDLIB
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-# THIRD-PARTY
 import numpy as np
 
-# LOCAL
-from cosmic_conchometer.ps import PowerSpectrumCallable
-from cosmic_conchometer.tf import TransferFunctionCallable
+from cosmic_conchometer.ps import PowerSpectrumCallable  # noqa: TCH001
+from cosmic_conchometer.tf import TransferFunctionCallable  # noqa: TCH001
 
 if TYPE_CHECKING:
-    # LOCAL
     from cosmic_conchometer._typing import NDAf, scalarT
     from cosmic_conchometer.params import LCDMParameters
 

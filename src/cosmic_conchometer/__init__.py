@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-# STDLIB
+import contextlib
 from importlib.metadata import version as _get_version
 
 __all__: list[str] = []
@@ -18,7 +18,5 @@ __version__ = _get_version("cosmic_conchometer")
 # Clean all private names
 for _n in list(globals()):
     if _n.startswith("_") and not _n.startswith("__"):
-        try:
+        with contextlib.suppress(KeyError):
             del globals()[_n]
-        except KeyError:
-            pass

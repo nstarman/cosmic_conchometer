@@ -1,13 +1,10 @@
 """Tests for :mod:`~cosmic_conchometer.common`."""
 
-# STDLIB
+
 from weakref import ProxyType
 
-# THIRD-PARTY
 import pytest
 from astropy.cosmology import Planck18
-
-# LOCAL
 from cosmic_conchometer.common import CosmologyDependent
 from cosmic_conchometer.utils.distances import DistanceMeasureConverter
 

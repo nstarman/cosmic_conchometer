@@ -26,29 +26,26 @@ accessible, and the documentation will not build correctly.
 
 from __future__ import annotations
 
-# STDLIB
 import datetime
-import os
+import pathlib
 import sys
 from importlib import import_module
 from typing import Any
 
 try:
-    # THIRD-PARTY
     from sphinx_astropy.conf.v1 import *  # noqa: F403
 except ImportError:
     sys.exit(1)
 else:
-    from sphinx_astropy.conf.v1 import exclude_patterns, rst_epilog, extensions
+    from sphinx_astropy.conf.v1 import exclude_patterns, extensions, rst_epilog
 
 
-# STDLIB
 # Get configuration information from setup.cfg
 from configparser import ConfigParser
 
 conf = ConfigParser()
 
-conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
+conf.read([pathlib.Path(__file__).resolve().parent.parent / "setup.cfg"])
 setup_cfg: dict[str, Any] = dict(conf.items("metadata"))
 
 # -- General configuration ----------------------------------------------------
@@ -138,7 +135,7 @@ todo_include_todos = True
 project: str = setup_cfg["name"]
 author = setup_cfg["author"]
 copyright = "{}, {}".format(
-    datetime.datetime.now().year,
+    datetime.datetime.now().year,  # noqa: DTZ005
     setup_cfg["author"],
 )
 
@@ -222,17 +219,14 @@ man_pages = [
 
 edit_on_github: str | None = setup_cfg.get("edit_on_github")
 
-if isinstance(edit_on_github, str):
+if isinstance(edit_on_github, str) and edit_on_github.lower() == "true":
+    extensions += ["sphinx_astropy.ext.edit_on_github"]
 
-    if edit_on_github.lower() == "true":
+    edit_on_github_project = setup_cfg["github_project"]
+    edit_on_github_branch = "master"
 
-        extensions += ["sphinx_astropy.ext.edit_on_github"]
-
-        edit_on_github_project = setup_cfg["github_project"]
-        edit_on_github_branch = "master"
-
-        edit_on_github_source_root = ""
-        edit_on_github_doc_root = "docs"
+    edit_on_github_source_root = ""
+    edit_on_github_doc_root = "docs"
 
 # -- Resolving issue number to links in changelog -----------------------------
 github_issues_url = "https://github.com/{}/issues/".format(

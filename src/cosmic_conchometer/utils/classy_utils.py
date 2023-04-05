@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-# STDLIB
 import configparser
-import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 __all__ = ["read_params_from_ini"]
+
+if TYPE_CHECKING:
+    from os import PathLike
 
 ##############################################################################
 # CODE
@@ -77,12 +78,12 @@ class CLASSConfigParser(configparser.ConfigParser):
         return str(optionxform)
 
 
-def read_params_from_ini(filename: str | bytes | os.PathLike[str], /) -> dict[str, Any]:
+def read_params_from_ini(filename: str | bytes | PathLike[str], /) -> dict[str, Any]:
     """Read parameters from INI file.
 
     Parameters
     ----------
-    filename : str | bytes | os.PathLike[str], position-only
+    filename : str | bytes | PathLike[str], position-only
         Path to INI file.
 
     Returns
@@ -92,6 +93,4 @@ def read_params_from_ini(filename: str | bytes | os.PathLike[str], /) -> dict[st
     """
     config = CLASSConfigParser()
     config.read(str(filename))
-
-    params = _flatten_dict({k: dict(config[k]) for k in config.sections()})
-    return params
+    return _flatten_dict({k: dict(config[k]) for k in config.sections()})

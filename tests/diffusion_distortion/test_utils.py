@@ -1,15 +1,14 @@
 """Tests for :mod:`~cosmic_conchometer.ps`."""
 
-# STDLIB
+
 from math import sqrt
 
-# THIRD-PARTY
 import numpy as np
 import pytest
-from pytest import approx
+from cosmic_conchometer.temperature_diffusion_spectra_distortion.utils import (
+    rho2_of_rho1,
+)
 
-# LOCAL
-from cosmic_conchometer.diffusion_distortion.utils import rho2_of_rho1
 
 ##############################################################################
 # TESTS
@@ -17,7 +16,7 @@ from cosmic_conchometer.diffusion_distortion.utils import rho2_of_rho1
 
 
 @pytest.mark.parametrize(
-    "rho, spll, sprp, maxrho_domain, expect",
+    ("rho", "spll", "sprp", "maxrho_domain", "expect"),
     [
         # Analytic results
         (0.0, 0.0, 0.0, 0.0, 0.0),
@@ -35,4 +34,6 @@ from cosmic_conchometer.diffusion_distortion.utils import rho2_of_rho1
 )
 def test_rho2_of_rho1(rho, spll, sprp, maxrho_domain, expect):
     """Test :func:`~cosmic_conchometer.tf.baumann_transfer_function`."""
-    assert rho2_of_rho1(rho, spll, sprp, maxrho_domain=maxrho_domain) == approx(expect)
+    assert rho2_of_rho1(rho, spll, sprp, maxrho_domain=maxrho_domain) == pytest.approx(
+        expect
+    )

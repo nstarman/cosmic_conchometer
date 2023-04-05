@@ -1,4 +1,3 @@
-# LOCAL
 from cosmic_conchometer.utils.classy_utils import (
     CLASSConfigParser,
     _flatten_dict,
@@ -33,7 +32,7 @@ def test_CLASSConfigParser():
         [background parameters]
         h =0.674
         T_cmb = 2.7255
-        """
+        """,
     )
 
     assert parser["background parameters"]["h"] == "0.674"
@@ -48,7 +47,7 @@ def test_read_params_from_ini(tmp_path):
         [background parameters]
         h =0.674
         T_cmb = 2.7255
-        """
+        """,
     )
 
     params = read_params_from_ini(p)

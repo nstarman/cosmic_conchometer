@@ -1,21 +1,22 @@
-"""Tests for :mod:`~cosmic_conchometer.diffusion_damping.core`."""
+"""Tests for core."""
 
-# STDLIB
+
 from collections.abc import Mapping
 from types import MappingProxyType
 
-# THIRD-PARTY
 import astropy.cosmology.units as cu
 import astropy.units as u
 import numpy as np
 import pytest
-from pytest import approx
+from cosmic_conchometer.temperature_diffusion_spectra_distortion.core import (
+    SpectralDistortion,
+)
+from cosmic_conchometer.temperature_diffusion_spectra_distortion.prob_2ls import (
+    ComputePspllSprp,
+)
 
-# LOCAL
 from ..test_common import Test_CosmologyDependent
 from .utils import CLASS
-from cosmic_conchometer.diffusion_distortion.core import SpectralDistortion
-from cosmic_conchometer.diffusion_distortion.prob_2ls import ComputePspllSprp
 
 ##############################################################################
 # TESTS
@@ -75,8 +76,8 @@ class Test_SpectralDistortion(Test_CosmologyDependent):
         assert "rho" in cdep._class_thermo
         assert cdep._class_thermo["rho"].unit == u.one
 
-        assert cdep._class_thermo["rho"].value == approx(
-            cdep.distance_converter.rho_of_z(cdep._class_thermo["z"]).value
+        assert cdep._class_thermo["rho"].value == pytest.approx(
+            cdep.distance_converter.rho_of_z(cdep._class_thermo["z"]).value,
         )
 
     def test_class_thermo(self, cdep):
@@ -131,7 +132,7 @@ class Test_SpectralDistortion(Test_CosmologyDependent):
         assert cdep.z_recombination.unit == cu.redshift
 
         # Hard-coded
-        assert cdep.z_recombination.value == approx(1089.0, rel=0.2)
+        assert cdep.z_recombination.value == pytest.approx(1089.0, rel=0.2)
 
     def test_rho_recombination(self, cdep):
         """Test attribute ``rho_recombination``."""
@@ -143,19 +144,17 @@ class Test_SpectralDistortion(Test_CosmologyDependent):
         assert cdep.rho_recombination.unit == u.one
 
         # Hard-coded
-        assert cdep.rho_recombination.value == approx(1.4333, rel=0.001)
+        assert cdep.rho_recombination.value == pytest.approx(1.4333, rel=0.001)
 
     # =====================================================
     # plots
 
-    @pytest.mark.mpl_image_compare
+    @pytest.mark.mpl_image_compare()
     def test_plot_CLASS_points_distribution(self, cdep):
         """Test method ``plot_CLASS_points_distribution``."""
-        fig = cdep.plot_CLASS_points_distribution()
-        return fig
+        return cdep.plot_CLASS_points_distribution()
 
-    @pytest.mark.mpl_image_compare
+    @pytest.mark.mpl_image_compare()
     def test_plot_zv_choice(self, cdep):
         """Test method ``plot_zv_choice``."""
-        fig = cdep.plot_zv_choice()
-        return fig
+        return cdep.plot_zv_choice()

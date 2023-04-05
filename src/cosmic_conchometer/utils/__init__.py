@@ -1,26 +1,7 @@
-# see LICENSE.rst
+"""Non-package specific utility functions."""
 
-# ----------------------------------------------------------------------------
-#
-#
-# ----------------------------------------------------------------------------
-
-"""Initialization file.
-
-This sub-module is destined for common non-package specific utility functions.
-
-"""
+from .distances import DistanceMeasureConverter
 
 __all__ = [
     "DistanceMeasureConverter",
 ]
-
-
-##############################################################################
-# IMPORTS
-
-# LOCAL
-from .distances import DistanceMeasureConverter
-
-##############################################################################
-# END

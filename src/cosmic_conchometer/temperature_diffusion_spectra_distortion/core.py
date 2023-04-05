@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
-# STDLIB
 import itertools
-from collections.abc import Mapping
+from abc import ABCMeta
+from collections.abc import Callable, Mapping
 from dataclasses import InitVar, dataclass
 from functools import cached_property
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, cast
+from weakref import proxy
 
-# THIRD-PARTY
 import astropy.cosmology.units as cu
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-from classy import Class as Classy
+from astropy.cosmology import FLRW  # noqa: TCH002
+from astropy.utils.metadata import MetaData
+from classy import Class as Classy  # noqa: TCH002
 from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
 
-# LOCAL
-from cosmic_conchometer.common import CosmologyDependent
-from cosmic_conchometer.diffusion_distortion.prob_2ls import ComputePspllSprp
+from cosmic_conchometer.temperature_diffusion_spectra_distortion.prob_2ls import (
+    ComputePspllSprp,
+)
+from cosmic_conchometer.utils.distances import DistanceMeasureConverter
 
 if TYPE_CHECKING:
-    # THIRD-PARTY
     from astropy.units import Quantity
     from matplotlib.figure import Figure
     from numpy.typing import ArrayLike, NDArray
@@ -44,7 +46,7 @@ IUSType = Callable[["ArrayLike"], "NDArray[np.floating[Any]]"]
 
 
 @dataclass(frozen=True)
-class SpectralDistortion(CosmologyDependent):
+class SpectralDistortion(metaclass=ABCMeta):
     r"""Spectral Distortion.
 
     Parameters
@@ -58,11 +60,17 @@ class SpectralDistortion(CosmologyDependent):
         second is the minimum redshift.
     """
 
+    cosmo: FLRW
     class_cosmo: Classy
-    z_bounds: InitVar[tuple[float, float]] = (5500, 100)  # TODO: make Quantity
+    z_bounds: InitVar[tuple[float, float]] = (5500, 100)
 
-    def __post_init__(self, z_bounds: tuple[float, float]) -> None:  # type: ignore[override] # noqa: E501
-        super().__post_init__()
+    meta = MetaData()
+
+    def __post_init__(self, z_bounds: tuple[float, float]) -> None:
+        self.distance_converter: DistanceMeasureConverter
+        object.__setattr__(
+            self, "distance_converter", DistanceMeasureConverter(proxy(self.cosmo))
+        )
 
         # --- thermodynamic quantities --- #
 
@@ -86,7 +94,7 @@ class SpectralDistortion(CosmologyDependent):
         th["rho"] = self.distance_converter.rho_of_z(th["z"])
 
         # Ensure everything immutable again, b/c added stuff
-        for k in th.keys():
+        for k in th:
             th[k].flags.writeable = False
 
         self._class_thermo: Mapping[str, NDArray[np.floating[Any]]]
@@ -159,12 +167,17 @@ class SpectralDistortion(CosmologyDependent):
             self.__dict__["class_thermo"] = ct = MappingProxyType(self._class_thermo)
         return ct
 
+    @property
+    def lambda0(self) -> Quantity:
+        """Distance scale factor in Mpc."""
+        return self.distance_converter.lambda0.to(u.Mpc)
+
     # ===============================================================
     # Properties
 
     @cached_property
     def z_domain(self) -> tuple[Quantity, Quantity]:
-        """z domain of validity."""
+        """Z domain of validity."""
         return (self._class_thermo["z"][0], self._class_thermo["z"][-1])
 
     @cached_property
@@ -182,12 +195,12 @@ class SpectralDistortion(CosmologyDependent):
 
     @property
     def z_recombination(self) -> Quantity:
-        """z of peak of visibility function."""
+        """Z of peak of visibility function."""
         return self._class_thermo["z"][self._class_thermo["g"].argmax()] << cu.redshift
 
     @property
     def rho_recombination(self) -> Quantity:
-        """rho of peak of visibility function."""
+        """Rho of peak of visibility function."""
         return self._class_thermo["rho"][self._class_thermo["g"].argmax()] << u.one
 
     # ===============================================================
@@ -249,7 +262,7 @@ class SpectralDistortion(CosmologyDependent):
             gbarCL_O.value,
             c="k",
             ls=":",
-            label=r"$g_\gamma^{CL}(z_V)$=" f"{gbarCL_O:.2e}",
+            label=r"$g_\gamma^{CL}(z_V)$=" + f"{gbarCL_O:.2e}",  # noqa: ISC003
         )
         ax1.invert_xaxis()
         ax1.legend()
@@ -274,7 +287,7 @@ class SpectralDistortion(CosmologyDependent):
             gbarCL_O.value,
             c="k",
             ls=":",
-            label=r"$g_\gamma^{CL}(\rho_V)$=" f"{gbarCL_O:.2e}",
+            label=r"$g_\gamma^{CL}(\rho_V)$=" + f"{gbarCL_O:.2e}",  # noqa: ISC003
         )
         ax2.set_yscale("log")
         ax2.legend()

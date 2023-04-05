@@ -9,12 +9,10 @@ packagename.test
 
 from __future__ import annotations
 
-# STDLIB
-import os
+import pathlib
 from importlib.metadata import version
 from typing import Any
 
-# THIRD-PARTY
 import pytest
 from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
 
@@ -28,14 +26,13 @@ def pytest_configure(config: pytest.Config) -> None:
     # tests.
     PYTEST_HEADER_MODULES.pop("Pandas", None)
 
-    packagename = os.path.basename(os.path.dirname(__file__))
+    packagename = pathlib.Path(__file__).resolve().parent.name
     TESTED_VERSIONS[packagename] = version("cosmic_conchometer")
 
 
 @pytest.fixture(autouse=True)  # type: ignore[misc]
-def add_numpy(doctest_namespace: dict[str, Any]) -> None:
+def _add_numpy(doctest_namespace: dict[str, Any]) -> None:
     """Add NumPy to Pytest."""
-    # THIRD-PARTY
     import numpy as np
 
     # add to namespace
@@ -43,9 +40,8 @@ def add_numpy(doctest_namespace: dict[str, Any]) -> None:
 
 
 @pytest.fixture(autouse=True)  # type: ignore[misc]
-def add_astropy(doctest_namespace: dict[str, Any]) -> None:
+def _add_astropy(doctest_namespace: dict[str, Any]) -> None:
     """Add imports to Pytest."""
-    # THIRD-PARTY
     import astropy.coordinates
     import astropy.units
 

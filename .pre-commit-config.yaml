@@ -22,7 +22,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.9.0
+    rev: v1.10.0
     hooks:
       - id: python-check-blanket-noqa
       - id: python-check-mock-methods
@@ -34,26 +34,15 @@ repos:
       - id: rst-inline-touching-normal
       - id: text-unicode-replacement-char
 
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.1
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: "v0.0.261"
     hooks:
-      - id: pyupgrade
+      - id: ruff
         args:
-          - --py39-plus
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.11.4
-    hooks:
-      - id: isort
-        name: isort (python)
-        additional_dependencies: [toml]
-      - id: isort
-        name: isort (pyi)
-        types: [pyi]
-        additional_dependencies: [toml]
+          - --fix
 
   - repo: https://github.com/psf/black
-    rev: 22.12.0
+    rev: 23.3.0
     hooks:
       - id: black
         additional_dependencies: [toml]
@@ -61,24 +50,17 @@ repos:
         additional_dependencies: [toml]
 
   - repo: https://github.com/asottile/blacken-docs
-    rev: v1.12.1
+    rev: 1.13.0
     hooks:
       - id: blacken-docs
-        additional_dependencies: [black==20.8b1]
-
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.0.194"
-    hooks:
-      - id: ruff
-        args:
-          - --fix
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: "v0.991"
+    rev: "v1.1.1"
     hooks:
       - id: mypy
         args:
           - --strict
           - --ignore-missing-imports
+          - --allow-subclassing-any
         exclude: ^tests/
         additional_dependencies: [numpy>=1.22]

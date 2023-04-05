@@ -1,11 +1,9 @@
 """Tests for :mod:`~cosmic_conchometer.datasets`."""
 
-# THIRD-PARTY
+
 import pooch
 import pytest
 from classy import Class as CLASS
-
-# LOCAL
 from cosmic_conchometer.datasets import cc_data, fetch_planck18_parameters
 
 ##############################################################################

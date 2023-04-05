@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-# STDLIB
 from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, TypeVar
 
-# THIRD-PARTY
 import astropy.cosmology.units as cu
 import astropy.units as u
 from astropy.cosmology import LambdaCDM, Planck18
 
-# LOCAL
 from cosmic_conchometer.utils.distances import z_matter_radiation_equality as _calc_zeq
 
 if TYPE_CHECKING:
-    # THIRD-PARTY
     from astropy.units import Quantity
 
 __all__ = ["CosmologyParameters", "LCDMParameters", "planck18"]
@@ -50,6 +46,7 @@ class LCDMParameters(CosmologyParameters):
     m_nu: tuple[float, ...]  # units of eV
     As: float
     ns: float
+    Ogamma0: float = 0.0
 
     def __post_init__(self) -> None:
         self.cosmo: LambdaCDM
@@ -70,8 +67,12 @@ class LCDMParameters(CosmologyParameters):
         )
 
     @classmethod
-    def from_astropy(  # noqa: D417
-        cls: type[Self], cosmo: LambdaCDM, /, As: float, ns: float
+    def from_astropy(
+        cls: type[Self],
+        cosmo: LambdaCDM,
+        /,
+        As: float,
+        ns: float,
     ) -> Self:
         """From an Astropy cosmology.
 
@@ -98,6 +99,7 @@ class LCDMParameters(CosmologyParameters):
             m_nu=tuple(cosmo.m_nu.to_value("eV")),
             As=As,
             ns=ns,
+            Ogamma0=float(cosmo.Ogamma0),
         )
 
     @cached_property

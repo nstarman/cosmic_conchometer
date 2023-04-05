@@ -1,10 +1,8 @@
 """Tests for :mod:`~cosmic_conchometer.params`."""
 
-# THIRD-PARTY
+
 import pytest
 from astropy.cosmology import LambdaCDM
-
-# LOCAL
 from cosmic_conchometer.params import CosmologyParameters, LCDMParameters, planck18
 from cosmic_conchometer.utils.distances import z_matter_radiation_equality
 
@@ -108,7 +106,7 @@ class Test_LCDMParameters(Test_CosmologyParameters):
         """Test the equality of the matter-radiation equality redshift."""
         # Check that the equality is correct.
         assert params.z_matter_radiation_equality == z_matter_radiation_equality(
-            params.cosmo
+            params.cosmo,
         )
 
 

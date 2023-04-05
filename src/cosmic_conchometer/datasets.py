@@ -1,13 +1,11 @@
 """Load sample data."""
 
-# STDLIB
+
 from typing import Any
 
-# THIRD-PARTY
 import pooch
 from importlib_metadata import version as get_version
 
-# LOCAL
 from cosmic_conchometer.utils import classy_utils
 
 __all__ = ["fetch_planck18_parameters"]
@@ -34,5 +32,4 @@ def fetch_planck18_parameters() -> dict[str, Any]:
     fname = cc_data.fetch("planck18_parameters.ini")
     # The "fetch" method returns the full path to the downloaded data file.
     # All we need to do now is load it with our standard Python tools.
-    data = classy_utils.read_params_from_ini(fname)
-    return data
+    return classy_utils.read_params_from_ini(fname)

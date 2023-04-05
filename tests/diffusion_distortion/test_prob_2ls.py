@@ -1,10 +1,10 @@
 """Tests for :mod:`~cosmic_conchometer.ps`."""
 
-# THIRD-PARTY
-import pytest
 
-# LOCAL
-from cosmic_conchometer.diffusion_distortion.utils import rho2_of_rho1
+import pytest
+from cosmic_conchometer.temperature_diffusion_spectra_distortion.utils import (
+    rho2_of_rho1,
+)
 
 ##############################################################################
 # TESTS

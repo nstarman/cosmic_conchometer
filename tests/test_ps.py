@@ -1,12 +1,9 @@
 """Tests for :mod:`~cosmic_conchometer.ps`."""
 
-# STDLIB
+
 from math import inf
 
-# THIRD-PARTY
 import pytest
-
-# LOCAL
 from cosmic_conchometer.params import planck18
 from cosmic_conchometer.ps import power_spectrum
 

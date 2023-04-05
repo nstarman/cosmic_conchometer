@@ -1,9 +1,7 @@
 """Tests for :mod:`~cosmic_conchometer.ps`."""
 
-# THIRD-PARTY
-import pytest
 
-# LOCAL
+import pytest
 from cosmic_conchometer.params import planck18
 from cosmic_conchometer.tf import baumann_transfer_function
 

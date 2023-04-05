@@ -2,20 +2,13 @@
 
 from __future__ import annotations
 
-# STDLIB
 from typing import TYPE_CHECKING, Protocol
 
-# THIRD-PARTY
 import numpy as np
 
-# LOCAL
-from cosmic_conchometer.params import LCDMParameters
-
 if TYPE_CHECKING:
-    # THIRD-PARTY
-
-    # LOCAL
     from cosmic_conchometer._typing import NDAf, scalarT
+    from cosmic_conchometer.params import LCDMParameters
 
 __all__ = ["power_spectrum"]
 
@@ -41,9 +34,13 @@ class PowerSpectrumCallable(Protocol):
 
 
 def power_spectrum(
-    cosmo: LCDMParameters, kmag: scalarT | NDAf, /, *, pivot_scale: scalarT | NDAf
+    cosmo: LCDMParameters,
+    kmag: scalarT | NDAf,
+    /,
+    *,
+    pivot_scale: scalarT | NDAf,
 ) -> NDAf:
-    """Simple power spectrum.
+    """Compute simple power spectrum.
 
     Parameters
     ----------

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-# STDLIB
 from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
-from weakref import ProxyType
 
-# THIRD-PARTY
 import astropy.constants as const
 import astropy.cosmology.units as cu
 import astropy.units as u
@@ -16,7 +13,8 @@ import numpy as np
 import scipy.optimize as optim
 
 if TYPE_CHECKING:
-    # THIRD-PARTY
+    from weakref import ProxyType
+
     from astropy.cosmology import FLRW
     from astropy.units import Quantity
 
@@ -36,40 +34,54 @@ TZ = TypeVar("TZ", float, "Quantity")  # u.Quantity[dimensionless]
 ##############################################################################
 
 
-def _residual(z: TZ, cosmo: FLRW) -> TZ:
+def _residual(z: TZ, cosmo: FLRW | ProxyType[FLRW]) -> TZ:
     return cosmo.Om(z) - (cosmo.Ogamma(z) + cosmo.Onu(z))  # type: ignore[no-any-return]
 
 
 @overload
 def z_matter_radiation_equality(
-    cosmo: FLRW, *, full_output: Literal[False] = ...
+    cosmo: FLRW | ProxyType[FLRW],
+    *,
+    full_output: Literal[False] = ...,
 ) -> Quantity:
     ...
 
 
 @overload
 def z_matter_radiation_equality(
-    cosmo: FLRW, *, full_output: Literal[True]
+    cosmo: FLRW | ProxyType[FLRW],
+    *,
+    full_output: Literal[True],
 ) -> tuple[Quantity, optim.RootResults]:
     ...
 
 
 @overload
 def z_matter_radiation_equality(
-    cosmo: FLRW, zmin: TZ, zmax: TZ, *, full_output: Literal[False] = ..., **rootkw: Any
+    cosmo: FLRW | ProxyType[FLRW],
+    zmin: TZ,
+    zmax: TZ,
+    *,
+    full_output: Literal[False] = ...,
+    **rootkw: Any,
 ) -> Quantity:
     ...
 
 
 @overload
 def z_matter_radiation_equality(
-    cosmo: FLRW, zmin: TZ, zmax: TZ, *, full_output: Literal[True], **rootkw: Any
+    cosmo: FLRW | ProxyType[FLRW],
+    zmin: TZ,
+    zmax: TZ,
+    *,
+    full_output: Literal[True],
+    **rootkw: Any,
 ) -> tuple[Quantity, optim.RootResults]:
     ...
 
 
 def z_matter_radiation_equality(
-    cosmo: FLRW,
+    cosmo: FLRW | ProxyType[FLRW],
     zmin: TZ = 1e3,
     zmax: TZ = 1e4,
     *,
@@ -103,7 +115,12 @@ def z_matter_radiation_equality(
     """
     # residual function
     zeq, rest = optim.brentq(
-        _residual, zmin, zmax, args=(cosmo,), full_output=True, **rootkw
+        _residual,
+        zmin,
+        zmax,
+        args=(cosmo,),
+        full_output=True,
+        **rootkw,
     )
     z_eq = zeq << cu.redshift
 
@@ -130,7 +147,7 @@ class DistanceMeasureConverter:
         -------
         Quantity
         """
-        aeq = self.a_today / (1.0 + self.z_matter_radiation_equality)
+        aeq: Quantity = self.a_today / (1.0 + self.z_matter_radiation_equality)
         lambda0 = (const.c / self.cosmo.H0) * np.sqrt((8 * aeq) / self.cosmo.Om0)
         return lambda0 << u.Mpc
 
@@ -156,7 +173,10 @@ class DistanceMeasureConverter:
     # matter-radiation equality
 
     def calculate_z_matter_radiation_equality(
-        self, zmin: TZ = 1e3, zmax: TZ = 1e4, **rootkw: Any
+        self,
+        zmin: TZ = 1e3,
+        zmax: TZ = 1e4,
+        **rootkw: Any,
     ) -> Quantity:
         """Redshift at matter-radiation equality.
 
@@ -173,7 +193,11 @@ class DistanceMeasureConverter:
             The redshift at matter-radiation equality.
         """
         return z_matter_radiation_equality(
-            self.cosmo, zmin=zmin, zmax=zmax, full_output=False, **rootkw
+            self.cosmo,
+            zmin=zmin,
+            zmax=zmax,
+            full_output=False,
+            **rootkw,
         )
 
     @cached_property
@@ -207,6 +231,7 @@ class DistanceMeasureConverter:
     @property
     def rho_today(self) -> Quantity:
         """Rho today."""
+        # TODO! calculate this
         return np.float64("41.16336546526635") << u.one
 
     # ---------------------------------
@@ -238,7 +263,7 @@ class DistanceMeasureConverter:
         )
 
     def rho_of_a(self, a: Quantity | float, /) -> Quantity:
-        """rho from the scale factor.
+        """Rho from the scale factor.
 
         Clipped to the range [``rho_begin``, ``rho_today``].
         """
