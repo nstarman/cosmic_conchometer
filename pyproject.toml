@@ -28,6 +28,7 @@
         "pooch>=1.6",
         "scipy",
         "tqdm",
+        "cosmology.api @ git+https://github.com/cosmology-api/cosmology-api.git"
     ]
 
 [project.optional-dependencies]

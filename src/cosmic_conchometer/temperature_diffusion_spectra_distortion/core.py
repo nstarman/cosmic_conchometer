@@ -141,7 +141,7 @@ class SpectralDistortion(metaclass=ABCMeta):
         self._spl_ln_PbarCL: IUSpline
         object.__setattr__(self, "_spl_ln_PbarCL", IUSpline(rho, lnPbarCL, ext=2))
 
-        # --- assistive --- #
+        # --------------------
 
         self.P: ComputePspllSprp
         object.__setattr__(
@@ -158,14 +158,10 @@ class SpectralDistortion(metaclass=ABCMeta):
             ),
         )
 
-    @property
+    @cached_property
     def class_thermo(self) -> MappingProxyType[str, Any]:
         """CLASS thermodynamics."""
-        if "class_thermo" in self.__dict__:
-            ct: MappingProxyType[str, Any] = self.__dict__["class_thermo"]
-        else:
-            self.__dict__["class_thermo"] = ct = MappingProxyType(self._class_thermo)
-        return ct
+        return MappingProxyType(self._class_thermo)
 
     @property
     def lambda0(self) -> Quantity:
@@ -184,10 +180,9 @@ class SpectralDistortion(metaclass=ABCMeta):
     def rho_domain(self) -> tuple[Quantity, Quantity]:
         """Rho domain of validity."""
         return (self._class_thermo["rho"][0], self._class_thermo["rho"][-1])
-        # return (
 
     @property
-    def maxrho_domain(self) -> Quantity:
+    def maxrho(self) -> Quantity:
         """Maximum rho domain of validity."""
         return self.rho_domain[1]
 

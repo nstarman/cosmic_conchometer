@@ -117,10 +117,10 @@ class Test_SpectralDistortion(Test_CosmologyDependent):
             cdep.distance_converter.rho_of_z(100),
         )
 
-    def test_maxrho_domain(self, cdep):
-        """Test attribute ``maxrho_domain``."""
-        assert cdep.maxrho_domain == cdep.rho_domain[1]
-        assert cdep.maxrho_domain == max(cdep.rho_domain)
+    def test_maxrho(self, cdep):
+        """Test attribute ``maxrho``."""
+        assert cdep.maxrho == cdep.rho_domain[1]
+        assert cdep.maxrho == max(cdep.rho_domain)
 
     def test_z_recombination(self, cdep):
         """Test attribute ``z_recombination``."""

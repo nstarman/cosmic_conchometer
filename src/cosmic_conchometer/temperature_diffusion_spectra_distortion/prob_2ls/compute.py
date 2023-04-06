@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, TypeAlias, cast
 
 import astropy.units as u
 import numpy as np
@@ -105,7 +105,7 @@ class ComputePspllSprp:
 
     def _visibilities_factor(self, rho: NDAf, spll: scalarT, sprp: scalarT) -> NDAf:
         """Return log [g/P](rho_1)*g(rho2)."""
-        rho2 = rho2_of_rho1(rho, spll, sprp, maxrho_domain=self.rho_domain[-1])
+        rho2 = rho2_of_rho1(rho, spll, sprp, maxrho=self.rho_domain[-1])
         vf: NDAf = np.exp(
             self.spl_ln_gbarCL(rho) - self.spl_ln_PbarCL(rho) + self.spl_ln_gbarCL(rho2)
         )
@@ -253,34 +253,7 @@ class ComputePspllSprp:
             Parr[i, j] = self(rho, Spll[i, j], Sprp[i, j])
 
         _spl = RectBivariateSpline(Spll[:, 0], Sprp[0, :], Parr, kx=3, ky=3, s=0)
-        correction = _spl.integral(
-            Spll.min(), Spll.max(), Sprp.min(), Sprp.max()
-        )  # should be 1.
+        # the correction should be 1.
+        correction = _spl.integral(Spll.min(), Spll.max(), Sprp.min(), Sprp.max())
 
         return Parr / correction, correction
-
-    def compute_fft(
-        self,
-        spll: NDAf,
-        sprp: NDAf,
-        Parr: NDAf | RectBivariateSpline,
-        **kwargs: Any,
-    ) -> tuple[NDAf, NDAf, NDAf, NDAf]:
-        """Compute the FFT."""
-        from .fft import fft_P
-
-        P = Parr(spll, sprp) if isinstance(Parr, RectBivariateSpline) else Parr
-
-        qpll, qprp, Ptilde = fft_P(
-            spll,
-            sprp,
-            P,
-            full_output=False,
-            sprp_lnpad=kwargs.pop("sprp_lnpad", 8),
-            _dering=kwargs.pop("_dering", True),
-        )
-
-        spl = RectBivariateSpline(qpll, qprp, np.abs(Ptilde), kx=3, ky=3, s=0)
-        correction = spl(0, 0, grid=False)  # should be 1.
-
-        return qpll, qprp, Ptilde / correction, correction

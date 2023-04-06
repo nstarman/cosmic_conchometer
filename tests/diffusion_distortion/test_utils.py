@@ -16,7 +16,7 @@ from cosmic_conchometer.temperature_diffusion_spectra_distortion.utils import (
 
 
 @pytest.mark.parametrize(
-    ("rho", "spll", "sprp", "maxrho_domain", "expect"),
+    ("rho", "spll", "sprp", "maxrho", "expect"),
     [
         # Analytic results
         (0.0, 0.0, 0.0, 0.0, 0.0),
@@ -32,8 +32,6 @@ from cosmic_conchometer.temperature_diffusion_spectra_distortion.utils import (
         (0.0, 0.0, 0.0, np.array([0, 0]), np.array([0, 0])),
     ],
 )
-def test_rho2_of_rho1(rho, spll, sprp, maxrho_domain, expect):
+def test_rho2_of_rho1(rho, spll, sprp, maxrho, expect):
     """Test :func:`~cosmic_conchometer.tf.baumann_transfer_function`."""
-    assert rho2_of_rho1(rho, spll, sprp, maxrho_domain=maxrho_domain) == pytest.approx(
-        expect
-    )
+    assert rho2_of_rho1(rho, spll, sprp, maxrho=maxrho) == pytest.approx(expect)

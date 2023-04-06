@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar, overload
 
 import astropy.constants as const
 import astropy.cosmology.units as cu
@@ -12,25 +12,20 @@ import astropy.units as u
 import numpy as np
 import scipy.optimize as optim
 
+__all__ = [
+    "z_matter_radiation_equality",
+    "DistanceMeasureConverter",
+]
+
 if TYPE_CHECKING:
     from weakref import ProxyType
 
     from astropy.cosmology import FLRW
     from astropy.units import Quantity
 
-__all__ = [
-    "z_matter_radiation_equality",
-    "DistanceMeasureConverter",
-]
-
-##############################################################################
-# TYPING
-
 # static types
 TZ = TypeVar("TZ", float, "Quantity")  # u.Quantity[dimensionless]
 
-##############################################################################
-# CODE
 ##############################################################################
 
 
@@ -130,6 +125,50 @@ def z_matter_radiation_equality(
 # ==================================================================
 
 
+# TODO: CosmologyAPI will replace this and absorb scale_factor0.
+class HasH0andOm0(Protocol):
+    """Protocol for objects with H0 and Om0 attributes."""
+
+    @property
+    def H0(self) -> Quantity:
+        """Hubble constant at z=0."""
+        ...
+
+    @property
+    def Om0(self) -> Quantity:
+        """Matter density at z=0."""
+        ...
+
+
+def lambda0(
+    cosmo: HasH0andOm0,
+    *,
+    z_eq: Quantity,
+    scale_factor0: Quantity = u.Quantity(0, u.one),  # noqa: B008
+) -> Quantity:
+    """Distance scale factor.
+
+    Parameters
+    ----------
+    cosmo : FLRW
+        The cosmological parameters.
+    z_eq : Quantity keyword-only
+        Redshift at matter-radiation equality.
+    scale_factor0 : Quantity keyword-only
+        Scale factor today.
+
+    Returns
+    -------
+    Quantity
+    """
+    aeq: Quantity = scale_factor0 / (1.0 + z_eq)
+    lambda0 = (const.c / cosmo.H0) * np.sqrt((8 * aeq) / cosmo.Om0)
+    return lambda0 << u.Mpc
+
+
+# ==================================================================
+
+
 @dataclass(frozen=True)
 class DistanceMeasureConverter:
     """Convert between distance measures."""
@@ -147,9 +186,11 @@ class DistanceMeasureConverter:
         -------
         Quantity
         """
-        aeq: Quantity = self.a_today / (1.0 + self.z_matter_radiation_equality)
-        lambda0 = (const.c / self.cosmo.H0) * np.sqrt((8 * aeq) / self.cosmo.Om0)
-        return lambda0 << u.Mpc
+        return lambda0(
+            self.cosmo,
+            z_eq=self.z_matter_radiation_equality,
+            scale_factor0=self.a_today,
+        )
 
     # ---------------------------------
     # Beginning of time
@@ -172,45 +213,19 @@ class DistanceMeasureConverter:
     # ---------------------------------
     # matter-radiation equality
 
-    def calculate_z_matter_radiation_equality(
-        self,
-        zmin: TZ = 1e3,
-        zmax: TZ = 1e4,
-        **rootkw: Any,
-    ) -> Quantity:
-        """Redshift at matter-radiation equality.
-
-        Parameters
-        ----------
-        zmin, zmax : float
-            The min/max redshift in which to search for matter-radiation equality.
-        **rootkw : Any
-            kwargs into scipy minimizer. See `~scipy.optimize.brentq` for details.
-
-        Returns
-        -------
-        Quantity
-            The redshift at matter-radiation equality.
-        """
-        return z_matter_radiation_equality(
-            self.cosmo,
-            zmin=zmin,
-            zmax=zmax,
-            full_output=False,
-            **rootkw,
-        )
-
     @cached_property
     def z_matter_radiation_equality(self) -> Quantity:
         """Redshift at matter-radiation equality."""
-        return self.calculate_z_matter_radiation_equality()
+        return z_matter_radiation_equality(
+            self.cosmo, zmin=1e3, zmax=1e4, full_output=False
+        )
 
-    @property
+    @cached_property
     def a_matter_radiation_equality(self) -> Quantity:
         """Scale factor at matter-radiation equality."""
         return self.a_of_z(self.z_matter_radiation_equality)
 
-    @property
+    @cached_property
     def rho_matter_radiation_equality(self) -> Quantity:
         """Rho at matter-radiation equality."""
         return self.rho_of_z(self.z_matter_radiation_equality)
@@ -228,11 +243,11 @@ class DistanceMeasureConverter:
         """Scale factor today."""
         return 1.0 * u.one
 
-    @property
+    @cached_property
     def rho_today(self) -> Quantity:
         """Rho today."""
-        # TODO! calculate this
-        return np.float64("41.16336546526635") << u.one
+        # $\sqrt((1 + a0/aeq) / 2)$
+        return np.sqrt((1 + 1 / self.a_matter_radiation_equality) / 2) << u.one
 
     # ---------------------------------
     # Redshift and scale factor

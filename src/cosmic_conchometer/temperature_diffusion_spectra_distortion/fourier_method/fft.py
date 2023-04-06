@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import numpy as np
 from scipy.fft import fft, fftfreq, fftshift, fht, fhtoffset
+from scipy.interpolate import (
+    RectBivariateSpline,
+)
 
 __all__: list[str] = []
 
@@ -154,3 +157,30 @@ def fft_P(
     if full_output:
         return qpll, qprp, Ptilde, Pqpllsprp[:, len(sprp_pad) :]
     return qpll, qprp, Ptilde
+
+
+###############################################################################
+
+
+def compute_fft(
+    spll: NDAf,
+    sprp: NDAf,
+    Parr: NDAf | RectBivariateSpline,
+    **kwargs: Any,
+) -> tuple[NDAf, NDAf, NDAf, NDAf]:
+    """Compute the FFT."""
+    P = Parr(spll, sprp) if isinstance(Parr, RectBivariateSpline) else Parr
+
+    qpll, qprp, Ptilde = fft_P(
+        spll,
+        sprp,
+        P,
+        full_output=False,
+        sprp_lnpad=kwargs.pop("sprp_lnpad", 8),
+        _dering=kwargs.pop("_dering", True),
+    )
+
+    spl = RectBivariateSpline(qpll, qprp, np.abs(Ptilde), kx=3, ky=3, s=0)
+    correction = spl(0, 0, grid=False)  # should be 1.
+
+    return qpll, qprp, Ptilde / correction, correction

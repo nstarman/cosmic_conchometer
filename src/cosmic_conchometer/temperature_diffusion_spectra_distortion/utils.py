@@ -6,21 +6,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+__all__: list[str] = []
+
 if TYPE_CHECKING:
     from cosmic_conchometer._typing import NDAf, scalarT
 
 
-__all__: list[str] = []
-
-##############################################################################
-
-
 def rho2_of_rho1(
-    rho1: scalarT | NDAf,
-    spll: scalarT | NDAf,
-    sprp: scalarT | NDAf,
-    *,
-    maxrho_domain: scalarT,
+    rho1: scalarT | NDAf, spll: scalarT | NDAf, sprp: scalarT | NDAf, *, maxrho: scalarT
 ) -> scalarT | NDAf:
     r""":math:`rho_2 = rho_1 - \sqrt{(s_{\|}+rho_1-rho_V)^2 + s_{\perp}^2}`.
 
@@ -30,11 +23,11 @@ def rho2_of_rho1(
         Rho.
     spll, sprp : float
         S.
-    maxrho_domain : float
+    maxrho : float
         Maximum valid rho.
 
     Returns
     -------
     float
     """
-    return rho1 - np.sqrt((spll + rho1 - maxrho_domain) ** 2 + sprp**2)
+    return rho1 - np.sqrt((spll + rho1 - maxrho) ** 2 + sprp**2)
