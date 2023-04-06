@@ -1,10 +1,152 @@
-[build-system]
+[project]
+    name = "cosmic_conchometer"
+    version = "0.1.0"
+    description = "Observables from a thick scattering volume"
+    readme = "README.rst"
+    requires-python = ">=3.10"
+    license = {file = "LICENSE"}
+    keywords = ["astronomy", "astrophysics", "cosmology"]
+    authors = [
+        {name = "Nathaniel Starkman", email = "n.starkman@mail.utoronto.ca"},
+        {name = "Glenn Starkman", email = "glenn.starkman@case.edu"},
+        {name = "Arthur Kosowsky", email = "kosowsky@pitt.edu"}
+    ]
+    maintainers = [
+        {name = "Nathaniel Starkman", email = "n.starkman@mail.utoronto.ca"}
+    ]
+    classifiers = [
+        "Intended Audience :: Science/Research",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3",
+    ]
+    dependencies = [
+        "astropy>=5.2",
+        "classy<3",
+        "numpy>=1.22",
+        "pooch>=1.6",
+        "scipy",
+        "tqdm",
+        "cosmology.api @ git+https://github.com/cosmology-api/cosmology-api.git"
+    ]
 
+[project.optional-dependencies]
+    all = []
+    test = [
+        "coverage[toml]",
+        "pytest",
+        "pytest-astropy",
+        "pytest-mpl",
+    ]
+    docs = [
+        "graphviz",
+        "IPython",
+        "jupyter_client",
+        "nbsphinx",
+        "pydata-sphinx-theme",
+        "sphinx",
+        "sphinx-astropy",
+        "tomlkit",
+    ]
+
+[project.urls]
+    homepage = "https://github.com/nstarman/cosmic_conchometer"
+    repository = "https://github.com/nstarman/cosmic_conchometer"
+    documentation = "https://github.com/nstarman/cosmic_conchometer"
+
+
+[build-system]
 requires = ["setuptools",
             "setuptools_scm",
-            "wheel",
-            "extension-helpers",
-            "oldest-supported-numpy",
-            "cython==0.29.14"]
+            "extension_helpers",
+            "wheel"]
+build-backend = "setuptools.build_meta"
 
-build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+    package-dir = {"" = "src"}
+
+[tool.setuptools_scm]
+
+
+[tool.black]
+    line-length = 88
+
+
+[tool.coverage]
+
+    [tool.coverage.report]
+        exclude_lines = [
+            # Have to re-enable the standard pragma
+            "pragma: no cover",
+            "pragma: py{ignore_python_version}",
+            # Don't complain about packages we have installed
+            "except ImportError",
+            # Don't complain if tests don't hit defensive assertion code:
+            "raise AssertionError",
+            "raise NotImplementedError",
+            # Don't complain about abstract methods, they aren't run:
+            '@(abc\.)?abstractmethod',
+            # Exclude type check blocks and Protocol contents, they aren't run:
+            "if TYPE_CHECKING:",
+            '\.\.\.',
+            # Don't complain about IPython completion helper
+            "def _ipython_key_completions_",
+        ]
+
+
+[tool.mypy]
+    strict = true
+    allow_subclassing_any = true
+    disallow_untyped_defs = true
+    ignore_missing_imports = true
+    no_implicit_optional = true
+    warn_return_any = true
+    warn_redundant_casts = true
+    warn_unused_configs = true
+    warn_unreachable = true
+    exclude = '''(^|/)tests/'''
+    plugins = "numpy.typing.mypy_plugin"
+
+[[tool.mypy.overrides]]
+    module = "*/tests/*"
+    ignore_errors = true
+
+[[tool.mypy.overrides]]
+    module = "tests/*"
+    ignore_errors = true
+
+[[tool.mypy.overrides]]
+    module = "conftest.py"
+    ignore_errors = true
+
+
+[tool.pytest]
+testpaths = ["tests", "cosmic_conchometer", "docs"]
+astropy_header = true
+doctest_plus = "enabled"
+text_file_format = "rst"
+doctest_norecursedirs="*/cosmic_conchometer/extern/*"
+addopts = [
+    "--doctest-rst",
+    "--mpl-hash-library=image_hashes.json"
+]
+
+
+[tool.ruff]
+    line-length = 88
+    select = ["ALL"]
+    ignore = [
+    "ANN101", "ANN102", "ANN401",
+    "ARG001", "ARG002",
+    "COM812",
+    "D105", "D107", "D203", "D213",
+    "FBT003",
+    "N8",
+    ]
+
+
+[tool.ruff.per-file-ignores]
+    "docs/conf.py" = ["A001", "INP001"]
+    "test_*.py" = ["ANN", "ARG005", "D100", "D101", "D102", "INP001", "N8", "PLR2004", "S101", "SLF001", "TID252"]
