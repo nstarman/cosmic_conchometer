@@ -167,93 +167,92 @@ class ComputePspllSprp:
         P: NDAf = self.prefactor * np.sum(p0 * t0 + p1 * t1 + p2 * t2 + p3 * t3)
         return P
 
-    # ==========================================================================
-    # On a grid
 
-    def _make_rho(
-        self,
-        spll: scalarT,
-        sprp: scalarT,
-        *,
-        n_sprp: int,
-        n_rho_center: int,
-        n_rho_lr: int,
-    ) -> NDAf:
-        # Center region
-        center = self.rho_domain[-1] - spll
-        center_lower: scalarT = max(center - n_sprp * np.abs(sprp), self.rho_domain[0])
-        center_upper: scalarT = min(center + n_sprp * np.abs(sprp), self.rho_domain[1])
+def _make_rho(
+    Pfunc: ComputePspllSprp,
+    /,
+    spll: scalarT,
+    sprp: scalarT,
+    *,
+    n_sprp: int,
+    n_rho_center: int,
+    n_rho_lr: int,
+) -> NDAf:
+    # Center region
+    center = Pfunc.rho_domain[-1] - spll
+    center_lower: scalarT = max(center - n_sprp * np.abs(sprp), Pfunc.rho_domain[0])
+    center_upper: scalarT = min(center + n_sprp * np.abs(sprp), Pfunc.rho_domain[1])
 
-        # Add lower rho, if center doesn't hit lower bound
-        rho_lower: NDAf
-        if center_lower == self.rho_domain[0]:
-            rho_lower = np.array([])
-        else:
-            rho_lower = np.linspace(
-                self.rho_domain[0] + 1e-5, center_lower, num=n_rho_lr
-            )
+    # Add lower rho, if center doesn't hit lower bound
+    rho_lower: NDAf
+    if center_lower == Pfunc.rho_domain[0]:
+        rho_lower = np.array([])
+    else:
+        rho_lower = np.linspace(Pfunc.rho_domain[0] + 1e-5, center_lower, num=n_rho_lr)
 
-        rho_center = np.linspace(center_lower, center_upper, num=n_rho_center)
+    rho_center = np.linspace(center_lower, center_upper, num=n_rho_center)
 
-        # Add upper rho, if center doesn't hit upper bound
-        rho_upper: NDAf
-        if center_upper == self.rho_domain[1]:
-            rho_upper = np.array([])
-        else:
-            rho_upper = np.linspace(center_upper, self.rho_domain[1], num=n_rho_lr)
+    # Add upper rho, if center doesn't hit upper bound
+    rho_upper: NDAf
+    if center_upper == Pfunc.rho_domain[1]:
+        rho_upper = np.array([])
+    else:
+        rho_upper = np.linspace(center_upper, Pfunc.rho_domain[1], num=n_rho_lr)
 
-        # TODO: not need the `unique` check
-        rho: NDAf = np.unique(
-            np.concatenate((rho_lower[:-1], rho_center, rho_upper[1:]))
+    # TODO: not need the `unique` check
+    rho: NDAf = np.unique(np.concatenate((rho_lower[:-1], rho_center, rho_upper[1:])))
+    return rho
+
+
+def compute_on_grid(
+    Pfunc: ComputePspllSprp,
+    Spll: NDAf,
+    Sprp: NDAf,
+    *,
+    n_sprp: int = 15,
+    n_rho_center: int = 1_000,
+    n_rho_lr: int = 1_000,
+) -> tuple[NDAf, float]:
+    """Compute on a grid.
+
+    Parameters
+    ----------
+    Pfunc : ComputePspllSprp
+        ComputePspllSprp instance.
+    Spll, Sprp : NDArray
+        Spll is columnar, Sprp is row-wise.
+
+    n_sprp : int, optional keyword-only
+        Number of sprp
+    n_rho_center : int, optional keyword-only
+        Number of rho in the center array.
+    n_rho_lr : int, optional keyword-only
+        Number of rho lef and right arrays.
+
+    Returns
+    -------
+    Parr : NDarray or RectBivariateSpline
+    tot_prob_correction : float
+    """
+    Parr = np.zeros_like(Spll)
+    shape = Parr.shape
+
+    for i, j in tqdm.tqdm(
+        itertools.product(range(shape[0]), range(shape[1])),
+        total=shape[0] * shape[1],
+    ):
+        rho = _make_rho(
+            Pfunc,
+            Spll[i, j],
+            Sprp[i, j],
+            n_sprp=n_sprp,
+            n_rho_center=n_rho_center,
+            n_rho_lr=n_rho_lr,
         )
-        return rho
+        Parr[i, j] = Pfunc(rho, Spll[i, j], Sprp[i, j])
 
-    def compute_on_grid(
-        self,
-        Spll: NDAf,
-        Sprp: NDAf,
-        *,
-        n_sprp: int = 15,
-        n_rho_center: int = 1_000,
-        n_rho_lr: int = 1_000,
-    ) -> tuple[NDAf, float]:
-        """Compute on a grid.
+    _spl = RectBivariateSpline(Spll[:, 0], Sprp[0, :], Parr, kx=3, ky=3, s=0)
+    # the correction should be 1.
+    correction = _spl.integral(Spll.min(), Spll.max(), Sprp.min(), Sprp.max())
 
-        Parameters
-        ----------
-        Spll, Sprp : NDArray
-            Spll is columnar, Sprp is row-wise.
-
-        n_sprp : int, optional keyword-only
-            Number of sprp
-        n_rho_center : int, optional keyword-only
-            Number of rho in the center array.
-        n_rho_lr : int, optional keyword-only
-            Number of rho lef and right arrays.
-
-        Returns
-        -------
-        Parr : NDarray or RectBivariateSpline
-        tot_prob_correction : float
-        """
-        Parr = np.zeros_like(Spll)
-        shape = Parr.shape
-
-        for i, j in tqdm.tqdm(
-            itertools.product(range(shape[0]), range(shape[1])),
-            total=shape[0] * shape[1],
-        ):
-            rho = self._make_rho(
-                Spll[i, j],
-                Sprp[i, j],
-                n_sprp=n_sprp,
-                n_rho_center=n_rho_center,
-                n_rho_lr=n_rho_lr,
-            )
-            Parr[i, j] = self(rho, Spll[i, j], Sprp[i, j])
-
-        _spl = RectBivariateSpline(Spll[:, 0], Sprp[0, :], Parr, kx=3, ky=3, s=0)
-        # the correction should be 1.
-        correction = _spl.integral(Spll.min(), Spll.max(), Sprp.min(), Sprp.max())
-
-        return Parr / correction, correction
+    return Parr / correction, correction
